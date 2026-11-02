@@ -1,12 +1,14 @@
 use crate::{
     Error as TlsnError, TlsOutput,
     deps::VerifierZk,
+    msg::ProxyFinished,
     proxy::{MsVisibility, References, VerifyDataCheck, alloc_proxy_refs},
 };
 use hmac_sha256::Prf;
 use mpz_common::Context;
 use mpz_memory_core::MemoryExt;
 use mpz_vm_core::Execute;
+use serio::stream::IoStreamExt;
 use tlsn_core::transcript::TlsTranscript;
 
 pub(crate) struct ProxyVerifier {
@@ -47,6 +49,21 @@ impl ProxyVerifier {
                 .with_msg("preprocessing proxy-tls failed")
                 .with_source(e)
         })
+    }
+
+    /// Waits for the prover to signal that it is done with the proxy
+    /// connection.
+    pub(crate) async fn wait_finished(&mut self) -> Result<(), TlsnError> {
+        self.ctx
+            .io_mut()
+            .expect_next::<ProxyFinished>()
+            .await
+            .map(|_| ())
+            .map_err(|e| {
+                TlsnError::io()
+                    .with_msg("failed to receive proxy finished message")
+                    .with_source(e)
+            })
     }
 
     pub(crate) async fn finalize(

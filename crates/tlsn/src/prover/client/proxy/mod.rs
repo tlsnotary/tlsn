@@ -295,7 +295,11 @@ impl TlsClient for ProxyTlsClient {
                     })?;
                     let traffic = std::mem::take(&mut self.traffic);
 
-                    let fut = Box::pin(prover.finalize(ms, time, traffic));
+                    let fut = Box::pin(async move {
+                        let mut prover = prover;
+                        prover.send_finished().await?;
+                        prover.finalize(ms, time, traffic).await
+                    });
 
                     self.state = State::Finalizing { fut };
                     self.poll(cx)

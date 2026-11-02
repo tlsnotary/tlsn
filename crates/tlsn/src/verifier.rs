@@ -8,13 +8,17 @@ pub use tlsn_core::{VerifierOutput, webpki::ServerCertVerifier};
 use crate::{
     Error, Mpc, PROXY_STREAM_PREFIX, Proxy, Result,
     deps::{VerifierDeps, VerifierMpcDeps, VerifierProxyDeps},
+    future::{Aux, poll_with},
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     proxy::InspectReader,
     session::SessionClosure,
     tag::verify_tags,
 };
 use futures::{
+use futures::{
     AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt,
+    future::{Either, select},
+};
     future::{Either, select},
 };
 use mpz_common::Context;
@@ -31,7 +35,7 @@ use tlsn_core::{
     transcript::TlsTranscript,
 };
 use tlsn_mux::Handle;
-use tracing::{Span, debug, info, info_span, instrument};
+use tracing::{Span, debug, info, info_span, instrument, warn};
 
 /// Information about the TLS session.
 #[derive(Debug)]
@@ -322,6 +326,15 @@ impl Verifier<state::CommitAccepted<Mpc>> {
     }
 }
 
+type ProxyForwardFuture<'a> =
+    std::pin::Pin<Box<dyn std::future::Future<Output = std::io::Result<()>> + Send + 'a>>;
+
+/// The proxy forwarding direction which is still running.
+enum RemainingProxy<'a> {
+    ProverToServer(ProxyForwardFuture<'a>),
+    ServerToProver(ProxyForwardFuture<'a>),
+}
+
 impl Verifier<state::CommitAccepted<Proxy>> {
     /// Runs the verifier until the TLS connection is closed.
     ///
@@ -354,9 +367,10 @@ impl Verifier<state::CommitAccepted<Proxy>> {
     where
         T: AsyncRead + AsyncWrite + Send + Unpin,
     {
-        let VerifierDeps::Proxy(VerifierProxyDeps { verifier, id }) = self.state.deps else {
+        let VerifierDeps::Proxy(deps) = self.state.deps else {
             unreachable!("proxy-tls received incorrect deps")
         };
+        let VerifierProxyDeps { mut verifier, id } = deps;
 
         let mut sent_buf = Vec::new();
         let mut recv_buf = Vec::new();
@@ -368,35 +382,117 @@ impl Verifier<state::CommitAccepted<Proxy>> {
 
         let prover_socket = self.mux_handle.new_stream(&proxy_id)?;
 
-        let (prover_read, mut prover_write) = prover_socket.split();
-        let (server_read, mut server_write) = server_socket.split();
+        let (prover_read, prover_write) = prover_socket.split();
+        let (server_read, server_write) = server_socket.split();
 
-        let mut prover_reader = InspectReader::new(prover_read, &mut sent_buf);
-        let mut server_reader = InspectReader::new(server_read, &mut recv_buf);
+        let conn_time = {
+            let mut prover_write = prover_write;
+            let mut server_write = server_write;
+            let mut prover_reader = InspectReader::new(prover_read, &mut sent_buf);
+            let mut server_reader = InspectReader::new(server_read, &mut recv_buf);
 
-        futures::future::try_join(
-            async {
+            let p2s = Box::pin(async {
+                // Failure to write prover data to the server is fatal.
                 futures::io::copy(&mut prover_reader, &mut server_write).await?;
-                server_write.close().await
-            },
-            async {
-                futures::io::copy(&mut server_reader, &mut prover_write).await?;
-                prover_write.close().await
-            },
-        )
-        .await
-        .map_err(|e| {
-            Error::io()
-                .with_msg("proxy traffic forwarding failed")
-                .with_source(e)
-        })?;
+                if let Err(err) = server_write.close().await {
+                    log_proxy_close_error("server", &err);
+                }
+                Ok::<(), std::io::Error>(())
+            });
+            let s2p = Box::pin(async {
+                let result = futures::io::copy(&mut server_reader, &mut prover_write).await;
+                if let Err(err) = prover_write.close().await {
+                    log_proxy_close_error("prover", &err);
+                }
+                result.map(|_| ())
+            });
+
+            // Whichever direction ends first determines how the other
+            // direction must be treated.
+            let (first_result, remaining) = match select(p2s, s2p).await {
+                // p2s completed first, so s2p remains.
+                Either::Left((result, remaining)) => (
+                    result,
+                    RemainingProxy::ServerToProver(Box::pin(remaining)),
+                ),
+                // s2p completed first, so p2s remains.
+                Either::Right((result, remaining)) => (
+                    result,
+                    RemainingProxy::ProverToServer(Box::pin(remaining)),
+                ),
+            };
+
+            {
+                // Keep the remaining future's borrow scoped to this block so
+                // the prover reader can be inspected afterwards.
+                let remaining_direction = remaining;
+
+                match remaining_direction {
+                    RemainingProxy::ServerToProver(server_to_prover) => {
+                        // p2s completed first; a p2s failure is fatal.
+                        first_result.map_err(|err| {
+                            Error::io()
+                                .with_msg("proxy traffic forwarding failed")
+                                .with_source(err)
+                        })?;
+
+                        // The prover only signals completion after observing
+                        // a terminal server signal through s2p. Keep
+                        // forwarding server data until then; afterwards s2p
+                        // may remain open.
+                        let (finished_result, server_to_prover) =
+                            poll_with(verifier.wait_finished(), server_to_prover).await;
+                        finished_result?;
+
+                        match server_to_prover {
+                            Aux::Pending(future) => {
+                                debug!(
+                                    "server forwarding still in progress after the prover finished"
+                                );
+                                drop(future);
+                            }
+                            Aux::Completed(result) => {
+                                if let Err(err) = result {
+                                    debug!(
+                                        "server forwarding ended with an error after the prover finished: {err}"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    RemainingProxy::ProverToServer(prover_to_server) => {
+                        // s2p completed first. Its error does not imply the
+                        // server is closed, so leave p2s running.
+                        if let Err(err) = first_result {
+                            debug!("server forwarding ended early: {err}");
+                        }
+
+                        // The prover may signal completion before its queued
+                        // TLS bytes, including its FIN, have reached the
+                        // verifier. Both the control message and p2s EOF are
+                        // required.
+                        let prover_to_server = async {
+                            prover_to_server.await.map_err(|err| {
+                                Error::io()
+                                    .with_msg("proxy traffic forwarding failed")
+                                    .with_source(err)
+                            })
+                        };
+
+                        futures::try_join!(verifier.wait_finished(), prover_to_server)?;
+                    }
+                }
+            }
+
+            prover_reader.first_read()
+        };
+
         info!("proxying TLS traffic finished");
 
         // If the prover goes away before forwarding a single byte there is no
         // connection time and no transcript to verify. This is a peer failure,
         // not an internal invariant, so surface it as an error.
-        let conn_time = prover_reader
-            .first_read()
+        let conn_time = conn_time
             .ok_or_else(|| Error::io().with_msg("prover closed before sending any data"))?;
 
         let (mut ctx, mut vm, output, cf_vd_check, sf_vd_check) =
@@ -602,5 +698,22 @@ impl Verifier<state::Verify> {
                 tls_transcript,
             },
         })
+    }
+}
+
+fn log_proxy_close_error(peer: &str, err: &std::io::Error) {
+    if matches!(
+        err.kind(),
+        std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
+    ) {
+        debug!(
+            "failed to close {peer} transport write half: {err}; \
+             the peer may already be gone and the transport FIN may not have been delivered"
+        );
+    } else {
+        warn!(
+            "failed to close {peer} transport write half: {err}; \
+             the transport FIN may not have been delivered"
+        );
     }
 }

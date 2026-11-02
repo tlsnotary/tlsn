@@ -15,6 +15,11 @@ pub(crate) struct TlsCommitRequestMsg {
     pub(crate) version: Version,
 }
 
+/// One-way message telling the verifier that the prover is done with the
+/// proxy connection.
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct ProxyFinished;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ProveRequestMsg {
     pub(crate) request: ProveRequest,
