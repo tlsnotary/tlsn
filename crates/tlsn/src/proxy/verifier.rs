@@ -76,11 +76,13 @@ impl ProxyVerifier {
             })?;
         tracing::debug!("successfully parsed transcript");
 
-        let mut refs = self.refs.expect("key refs should be available");
+        let mut refs = self
+            .refs
+            .ok_or_else(|| TlsnError::internal().with_msg("proxy verifier key refs are missing"))?;
 
-        let cf_hash: [u8; 32] = tls_transcript
-            .cf_hash()
-            .expect("client finished hash should be available");
+        let cf_hash: [u8; 32] = tls_transcript.cf_hash().ok_or_else(|| {
+            TlsnError::internal().with_msg("client finished hash is missing from tls transcript")
+        })?;
 
         let tlsn_core::connection::CertBinding::V1_2(binding) =
             tls_transcript.certificate_binding()
@@ -123,9 +125,9 @@ impl ProxyVerifier {
             .ok_or(TlsnError::internal().with_msg("unable to receive cf_vd from decoding"))?;
 
         // Now that cf_vd is known, compute sf_hash and resume the PRF.
-        let sf_hash: [u8; 32] = tls_transcript
-            .sf_hash(&cf_vd)
-            .expect("server finished hash should be available");
+        let sf_hash: [u8; 32] = tls_transcript.sf_hash(&cf_vd).ok_or_else(|| {
+            TlsnError::internal().with_msg("server finished hash is missing from tls transcript")
+        })?;
 
         self.prf
             .set_sf_hash(sf_hash)

@@ -349,9 +349,12 @@ impl Verifier<state::CommitAccepted<Proxy>> {
         })?;
         info!("proxying TLS traffic finished");
 
+        // If the prover goes away before forwarding a single byte there is no
+        // connection time and no transcript to verify. This is a peer failure,
+        // not an internal invariant, so surface it as an error.
         let conn_time = prover_reader
             .first_read()
-            .expect("connection time should have been set");
+            .ok_or_else(|| Error::io().with_msg("prover closed before sending any data"))?;
 
         let (mut ctx, mut vm, output, cf_vd_check, sf_vd_check) =
             verifier.finalize(&sent_buf, &recv_buf, conn_time).await?;
