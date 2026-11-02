@@ -205,6 +205,10 @@ impl TlsClient for ProxyTlsClient {
         self.client_closed = true;
     }
 
+    fn is_handshaking(&self) -> bool {
+        matches!(self.state, State::Init { .. } | State::Handshaking { .. })
+    }
+
     fn server_close(&mut self) {
         self.server_closed = true;
     }

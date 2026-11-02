@@ -30,6 +30,7 @@ pub(crate) struct MpcTlsClient {
     client_wants_close: bool,
     server_closed: bool,
     peer_closed: bool,
+    handshaking: bool,
 }
 
 enum State {
@@ -89,6 +90,7 @@ impl MpcTlsClient {
             client_wants_close: false,
             server_closed: false,
             peer_closed: false,
+            handshaking: true,
             state: State::Start {
                 inner: Box::new(inner),
             },
@@ -195,6 +197,10 @@ impl TlsClient for MpcTlsClient {
         self.client_wants_close = true;
     }
 
+    fn is_handshaking(&self) -> bool {
+        self.handshaking
+    }
+
     fn server_close(&mut self) {
         self.server_closed = true;
     }
@@ -214,6 +220,7 @@ impl TlsClient for MpcTlsClient {
         match std::mem::replace(&mut self.state, State::Error) {
             State::Start { inner } => {
                 trace!("inner client is starting");
+                self.handshaking = true;
                 self.state = State::Busy {
                     fut: Box::pin(inner.start()),
                 };
@@ -221,6 +228,7 @@ impl TlsClient for MpcTlsClient {
             }
             State::Active { mut inner } => {
                 trace!("inner client is active");
+                self.handshaking = inner.tls.is_handshaking();
                 self.peer_closed |= inner.tls.received_close_notify();
                 let decrypt = self.decrypt.is_decrypting();
 
@@ -267,6 +275,7 @@ impl TlsClient for MpcTlsClient {
 
                 match fut.as_mut().poll(cx)? {
                     Poll::Ready(inner) => {
+                        self.handshaking = inner.tls.is_handshaking();
                         self.peer_closed |= inner.tls.received_close_notify();
                         self.state = State::Active { inner };
                         // re-poll immediately if a close transition is pending
@@ -280,6 +289,7 @@ impl TlsClient for MpcTlsClient {
             }
             State::CloseActive { inner } => {
                 trace!("inner client is active closing");
+                self.handshaking = false;
                 self.state = State::CloseBusy {
                     fut: Box::pin(inner.run()),
                 };

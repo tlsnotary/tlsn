@@ -478,6 +478,9 @@ where
                 }
             } else if !*state.client_closed && !*state.server_closed {
                 *state.client_closed = true;
+                if state.tls_client.is_handshaking() {
+                    return Err(Error::io().with_msg("client closed during TLS handshake"));
+                }
                 state.tls_client.client_close();
             }
         }

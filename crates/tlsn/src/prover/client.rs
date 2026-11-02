@@ -55,6 +55,11 @@ pub(crate) trait TlsClient {
         false
     }
 
+    /// Returns whether the TLS handshake is still in progress.
+    fn is_handshaking(&self) -> bool {
+        false
+    }
+
     /// Returns true when the write half of the transport can be closed.
     fn wants_write_shutdown(&self) -> bool {
         false
