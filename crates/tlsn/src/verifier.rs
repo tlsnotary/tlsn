@@ -15,10 +15,7 @@ use crate::{
     tag::verify_tags,
 };
 use futures::{
-use futures::{
-    AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt,
-    future::{Either, select},
-};
+    AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, FutureExt,
     future::{Either, select},
 };
 use mpz_common::Context;
@@ -328,11 +325,16 @@ impl Verifier<state::CommitAccepted<Mpc>> {
 
 type ProxyForwardFuture<'a> =
     std::pin::Pin<Box<dyn std::future::Future<Output = std::io::Result<()>> + Send + 'a>>;
+type FusedProxyForward<'a> = futures::future::Fuse<ProxyForwardFuture<'a>>;
 
-/// The proxy forwarding direction which is still running.
-enum RemainingProxy<'a> {
-    ProverToServer(ProxyForwardFuture<'a>),
-    ServerToProver(ProxyForwardFuture<'a>),
+/// The first event observed while forwarding proxy traffic.
+enum FirstProxyEvent<'a> {
+    /// The prover signalled that the server read side is finished.
+    Finished(Result<()>, FusedProxyForward<'a>, FusedProxyForward<'a>),
+    /// p2s completed first; s2p remains.
+    ProverToServer(std::io::Result<()>, FusedProxyForward<'a>),
+    /// s2p completed first; p2s remains.
+    ServerToProver(std::io::Result<()>, FusedProxyForward<'a>),
 }
 
 impl Verifier<state::CommitAccepted<Proxy>> {
@@ -391,7 +393,7 @@ impl Verifier<state::CommitAccepted<Proxy>> {
             let mut prover_reader = InspectReader::new(prover_read, &mut sent_buf);
             let mut server_reader = InspectReader::new(server_read, &mut recv_buf);
 
-            let p2s = Box::pin(async {
+            let p2s: ProxyForwardFuture<'_> = Box::pin(async {
                 // Failure to write prover data to the server is fatal.
                 futures::io::copy(&mut prover_reader, &mut server_write).await?;
                 if let Err(err) = server_write.close().await {
@@ -399,7 +401,7 @@ impl Verifier<state::CommitAccepted<Proxy>> {
                 }
                 Ok::<(), std::io::Error>(())
             });
-            let s2p = Box::pin(async {
+            let s2p: ProxyForwardFuture<'_> = Box::pin(async {
                 let result = futures::io::copy(&mut server_reader, &mut prover_write).await;
                 if let Err(err) = prover_write.close().await {
                     log_proxy_close_error("prover", &err);
@@ -407,44 +409,49 @@ impl Verifier<state::CommitAccepted<Proxy>> {
                 result.map(|_| ())
             });
 
-            // Whichever direction ends first determines how the other
-            // direction must be treated.
-            let (first_result, remaining) = match select(p2s, s2p).await {
-                // p2s completed first, so s2p remains.
-                Either::Left((result, remaining)) => (
-                    result,
-                    RemainingProxy::ServerToProver(Box::pin(remaining)),
-                ),
-                // s2p completed first, so p2s remains.
-                Either::Right((result, remaining)) => (
-                    result,
-                    RemainingProxy::ProverToServer(Box::pin(remaining)),
-                ),
-            };
-
             {
-                // Keep the remaining future's borrow scoped to this block so
-                // the prover reader can be inspected afterwards.
-                let remaining_direction = remaining;
+                let first = {
+                    let mut p2s = p2s.fuse();
+                    let mut s2p = s2p.fuse();
+                    let mut finished = Box::pin(verifier.wait_finished()).fuse();
 
-                match remaining_direction {
-                    RemainingProxy::ServerToProver(server_to_prover) => {
+                    futures::select_biased! {
+                        res = &mut finished => FirstProxyEvent::Finished(res, p2s, s2p),
+                        res = &mut p2s => FirstProxyEvent::ProverToServer(res, s2p),
+                        res = &mut s2p => FirstProxyEvent::ServerToProver(res, p2s),
+                    }
+                };
+
+                match first {
+                    FirstProxyEvent::Finished(finished_result, p2s, _s2p) => {
+                        finished_result?;
+
+                        // The prover signalled that the server read side is
+                        // finished. s2p is no longer needed, but p2s may still
+                        // contain queued prover data that must be drained.
+                        let p2s = async {
+                            p2s.await.map_err(|err| {
+                                Error::io()
+                                    .with_msg("proxy traffic forwarding failed")
+                                    .with_source(err)
+                            })
+                        };
+                        p2s.await?;
+                    }
+                    FirstProxyEvent::ProverToServer(result, s2p) => {
                         // p2s completed first; a p2s failure is fatal.
-                        first_result.map_err(|err| {
+                        result.map_err(|err| {
                             Error::io()
                                 .with_msg("proxy traffic forwarding failed")
                                 .with_source(err)
                         })?;
 
-                        // The prover only signals completion after observing
-                        // a terminal server signal through s2p. Keep
-                        // forwarding server data until then; afterwards s2p
-                        // may remain open.
-                        let (finished_result, server_to_prover) =
-                            poll_with(verifier.wait_finished(), server_to_prover).await;
+                        // Keep forwarding server data until the prover
+                        // signals that the server read side is finished.
+                        let (finished_result, s2p) = poll_with(verifier.wait_finished(), s2p).await;
                         finished_result?;
 
-                        match server_to_prover {
+                        match s2p {
                             Aux::Pending(future) => {
                                 debug!(
                                     "server forwarding still in progress after the prover finished"
@@ -460,26 +467,22 @@ impl Verifier<state::CommitAccepted<Proxy>> {
                             }
                         }
                     }
-                    RemainingProxy::ProverToServer(prover_to_server) => {
+                    FirstProxyEvent::ServerToProver(result, p2s) => {
                         // s2p completed first. Its error does not imply the
                         // server is closed, so leave p2s running.
-                        if let Err(err) = first_result {
+                        if let Err(err) = result {
                             debug!("server forwarding ended early: {err}");
                         }
 
-                        // The prover may signal completion before its queued
-                        // TLS bytes, including its FIN, have reached the
-                        // verifier. Both the control message and p2s EOF are
-                        // required.
-                        let prover_to_server = async {
-                            prover_to_server.await.map_err(|err| {
+                        // Both the completion signal and p2s EOF are required.
+                        let p2s = async {
+                            p2s.await.map_err(|err| {
                                 Error::io()
                                     .with_msg("proxy traffic forwarding failed")
                                     .with_source(err)
                             })
                         };
-
-                        futures::try_join!(verifier.wait_finished(), prover_to_server)?;
+                        futures::try_join!(verifier.wait_finished(), p2s)?;
                     }
                 }
             }

@@ -322,7 +322,7 @@ where
 
         Self::poll_io(&mut state, cx)?;
 
-        if *state.server_closed && state.output.is_some() {
+        if state.output.is_some() {
             ready!(state.client_io.poll_close(cx))?;
             ready!(state.server_socket.poll_close(cx))?;
 

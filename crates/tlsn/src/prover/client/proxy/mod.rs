@@ -40,6 +40,8 @@ pub(crate) struct ProxyTlsClient {
     traffic: TlsBytes,
     client_closed: bool,
     server_closed: bool,
+    server_tls_closed: bool,
+    finished_sent: bool,
     write_shutdown_requested: bool,
     write_shutdown_done: bool,
     state: State,
@@ -57,11 +59,17 @@ enum State {
         sent_close_notify: bool,
         prover: Box<ProxyProver>,
     },
+    SendingFinished {
+        sent_close_notify: bool,
+        fut: Pin<SendFinishedFuture>,
+    },
     Finalizing {
         fut: Pin<FinalizeFuture>,
     },
     Error,
 }
+
+type SendFinishedFuture = Box<dyn Future<Output = Result<Box<ProxyProver>, TlsnError>> + Send>;
 
 type FinalizeFuture =
     Box<dyn Future<Output = Result<(Context, ProverZk, TlsOutput), TlsnError>> + Send>;
@@ -117,6 +125,8 @@ impl ProxyTlsClient {
             traffic: TlsBytes::default(),
             client_closed: false,
             server_closed: false,
+            server_tls_closed: false,
+            finished_sent: false,
             write_shutdown_requested: false,
             write_shutdown_done: false,
             state: State::Init { prover },
@@ -262,28 +272,58 @@ impl TlsClient for ProxyTlsClient {
                 prover,
             } => {
                 trace!("inner client is connected");
-                self.conn.process_new_packets().map_err(|err| {
+                let io_state = self.conn.process_new_packets().map_err(|err| {
                     TlsnError::internal()
                         .with_msg("rustls error")
                         .with_source(err)
                 })?;
 
-                // Once the TLS send side has been flushed, the transport owner
-                // may close the write half.
-                if sent_close_notify && !self.conn.wants_write() {
-                    if !self.write_shutdown_requested {
-                        self.write_shutdown_requested = true;
-                    }
-                    if !self.write_shutdown_done {
-                        self.state = State::Connected {
-                            sent_close_notify,
-                            prover,
-                        };
-                        return Poll::Pending;
-                    }
+                if io_state.peer_has_closed() && !self.server_tls_closed {
+                    self.server_tls_closed = true;
+                    debug!("server closed its TLS write side");
                 }
 
-                if self.server_closed {
+                if self.client_closed && !self.server_closed && !sent_close_notify {
+                    debug!("sent close notify");
+                    self.conn.send_close_notify();
+                    sent_close_notify = true;
+                }
+
+                // Once the TLS send side has been flushed, the transport owner
+                // may close the write half.
+                if (sent_close_notify || self.server_closed) && !self.conn.wants_write() {
+                    self.write_shutdown_requested = true;
+                }
+
+                if self.write_shutdown_requested && !self.write_shutdown_done {
+                    self.state = State::Connected {
+                        sent_close_notify,
+                        prover,
+                    };
+                    return Poll::Pending;
+                }
+
+                // The server will send no more data. Tell the verifier so it
+                // can stop forwarding server data while the prover continues
+                // sending any remaining client data.
+                if self.server_tls_closed && !self.finished_sent {
+                    let fut = Box::pin(async move {
+                        let mut prover = prover;
+                        prover.send_finished().await?;
+                        Ok(prover)
+                    });
+
+                    self.state = State::SendingFinished {
+                        sent_close_notify,
+                        fut,
+                    };
+                    return self.poll(cx);
+                }
+
+                let finalize_now = self.write_shutdown_done
+                    && (self.server_closed || (self.client_closed && sent_close_notify));
+
+                if finalize_now {
                     let ms = self.ms_log.take();
                     if ms.is_empty() {
                         return Poll::Ready(Err(
@@ -294,25 +334,18 @@ impl TlsClient for ProxyTlsClient {
                         TlsnError::internal().with_msg("connection timestamp is not set")
                     })?;
                     let traffic = std::mem::take(&mut self.traffic);
+                    let already_finished = self.finished_sent;
 
                     let fut = Box::pin(async move {
                         let mut prover = prover;
-                        prover.send_finished().await?;
+                        if !already_finished {
+                            prover.send_finished().await?;
+                        }
                         prover.finalize(ms, time, traffic).await
                     });
 
+                    self.finished_sent = true;
                     self.state = State::Finalizing { fut };
-                    self.poll(cx)
-                } else if self.client_closed && !sent_close_notify {
-                    debug!("sent close notify");
-                    self.conn.send_close_notify();
-                    sent_close_notify = true;
-
-                    self.state = State::Connected {
-                        sent_close_notify,
-                        prover,
-                    };
-
                     self.poll(cx)
                 } else {
                     self.state = State::Connected {
@@ -320,6 +353,29 @@ impl TlsClient for ProxyTlsClient {
                         prover,
                     };
                     Poll::Pending
+                }
+            }
+            State::SendingFinished {
+                sent_close_notify,
+                mut fut,
+            } => {
+                debug!("inner client is sending proxy finished");
+                match fut.poll_unpin(cx)? {
+                    Poll::Ready(prover) => {
+                        self.finished_sent = true;
+                        self.state = State::Connected {
+                            sent_close_notify,
+                            prover,
+                        };
+                        self.poll(cx)
+                    }
+                    Poll::Pending => {
+                        self.state = State::SendingFinished {
+                            sent_close_notify,
+                            fut,
+                        };
+                        Poll::Pending
+                    }
                 }
             }
             State::Finalizing { mut fut } => {
