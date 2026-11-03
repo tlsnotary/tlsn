@@ -312,17 +312,24 @@ where
     }
 
     fn poll(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Error>> {
+        let mut state = Pin::new(&mut self.state).project();
+
         // The verifier may disappear while the prover is parked waiting on a
         // silent server. The session driver notices the broken connection and
         // wakes us here so the prover fails instead of hanging forever.
-        self.closure.register(cx.waker());
-        if self.closure.is_closed() {
-            return Poll::Ready(Err(
-                Error::io().with_msg("session closed while the prover was connected")
-            ));
+        //
+        // Only fail while the TLS output is still missing: once it exists the
+        // connection phase has succeeded, and a session that closes while the
+        // transport handles are being closed must not turn that success into an
+        // error.
+        if state.output.is_none() {
+            self.closure.register(cx.waker());
+            if self.closure.is_closed() {
+                return Poll::Ready(Err(
+                    Error::io().with_msg("session closed while the prover was connected")
+                ));
+            }
         }
-
-        let mut state = Pin::new(&mut self.state).project();
 
         Self::poll_io(&mut state, cx)?;
 
