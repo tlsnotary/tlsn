@@ -576,4 +576,31 @@ mod tests {
             tlsn_mux::ConfigError::ReceiveWindowTooSmall { .. }
         ));
     }
+
+    #[test]
+    fn unsplit_session_drop_closes_closure() {
+        let session = Session::new(futures::io::Cursor::new(Vec::<u8>::new()));
+        let closure = session.closure.share();
+        assert!(!closure.is_closed());
+
+        drop(session);
+
+        assert!(closure.is_closed());
+    }
+
+    #[test]
+    fn handle_drop_does_not_close_session() {
+        let session = Session::new(futures::io::Cursor::new(Vec::<u8>::new()));
+        let closure = session.closure.share();
+
+        let (driver, handle) = session.split();
+        drop(handle);
+        assert!(
+            !closure.is_closed(),
+            "dropping the handle must not end the session"
+        );
+
+        drop(driver);
+        assert!(closure.is_closed());
+    }
 }
