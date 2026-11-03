@@ -165,6 +165,32 @@ impl Future for Closed<'_> {
     }
 }
 
+/// Closes the session when dropped.
+///
+/// This is a field rather than a [`Drop`] implementation on [`Session`] so
+/// that [`Session::split`] can still move the session's fields into the
+/// driver and handle.
+struct ClosureGuard(Arc<SessionClosure>);
+
+impl ClosureGuard {
+    fn share(&self) -> Arc<SessionClosure> {
+        self.0.clone()
+    }
+
+    fn close(&self) {
+        self.0.close();
+    }
+}
+
+impl Drop for ClosureGuard {
+    fn drop(&mut self) {
+        // The session may be dropped without ever completing (e.g. the task
+        // driving it is aborted). Participants must still learn that the
+        // session is gone.
+        self.0.close();
+    }
+}
+
 /// A TLSNotary session over a communication channel.
 ///
 /// Wraps an async IO stream and provides multiplexing for the protocol. Use
@@ -185,7 +211,7 @@ pub struct Session<Io> {
     conn: Option<Connection<Io>>,
     executor: MpzSession,
     handle: Handle,
-    closure: Arc<SessionClosure>,
+    closure: ClosureGuard,
 }
 
 impl<Io> Session<Io>
@@ -217,7 +243,7 @@ where
             conn: Some(conn),
             executor,
             handle,
-            closure: Arc::new(SessionClosure::default()),
+            closure: ClosureGuard(Arc::new(SessionClosure::default())),
         }
     }
 
@@ -236,7 +262,7 @@ where
             ctx,
             self.handle.clone(),
             config,
-            self.closure.clone(),
+            self.closure.share(),
         ))
     }
 
@@ -255,7 +281,7 @@ where
             ctx,
             self.handle.clone(),
             config,
-            self.closure.clone(),
+            self.closure.share(),
         ))
     }
 
@@ -323,20 +349,21 @@ where
     pub fn split(self) -> (SessionDriver<Io>, SessionHandle) {
         let should_close = Arc::new(AtomicBool::new(false));
         let waker = Arc::new(Mutex::new(None::<Waker>));
+        let handle_closure = self.closure.share();
 
         (
             SessionDriver {
                 conn: self.conn,
                 should_close: should_close.clone(),
                 waker: waker.clone(),
-                closure: self.closure.clone(),
+                closure: self.closure,
             },
             SessionHandle {
                 executor: self.executor,
                 should_close,
                 waker,
                 handle: self.handle,
-                closure: self.closure,
+                closure: handle_closure,
             },
         )
     }
@@ -362,7 +389,7 @@ pub struct SessionDriver<Io> {
     conn: Option<Connection<Io>>,
     should_close: Arc<AtomicBool>,
     waker: Arc<Mutex<Option<Waker>>>,
-    closure: Arc<SessionClosure>,
+    closure: ClosureGuard,
 }
 
 impl<Io> SessionDriver<Io>
@@ -415,14 +442,6 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         SessionDriver::poll(&mut *self, cx)
-    }
-}
-
-impl<Io> Drop for SessionDriver<Io> {
-    fn drop(&mut self) {
-        // The driver may be dropped without ever completing (e.g. the task is
-        // aborted). Participants must still learn that the session is gone.
-        self.closure.close();
     }
 }
 
