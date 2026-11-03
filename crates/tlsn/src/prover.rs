@@ -348,11 +348,25 @@ where
 
         let read_tls_ready = state.tls_client.wants_read_tls();
         let write_ready = state.tls_client.wants_write();
+        let was_handshaking = state.tls_client.is_handshaking();
 
         if state.output.is_none()
             && let Poll::Ready(output) = state.tls_client.poll(cx)?
         {
             *state.output = Some(output);
+        }
+
+        // A client that closes its write half during the handshake may still
+        // be reading the response; the server still drives the handshake. Hold
+        // the close until the handshake is over so already-written plaintext
+        // is sent before the TLS close_notify.
+        if *state.client_closed
+            && state.output.is_none()
+            && was_handshaking
+            && !state.tls_client.is_handshaking()
+        {
+            state.tls_client.client_close();
+            cx.waker().wake_by_ref();
         }
 
         // A peer that sends close_notify has finished its TLS stream even if
@@ -492,10 +506,9 @@ where
                 }
             } else if !*state.client_closed && !*state.server_closed {
                 *state.client_closed = true;
-                if state.tls_client.is_handshaking() {
-                    return Err(Error::io().with_msg("client closed during TLS handshake"));
+                if !state.tls_client.is_handshaking() {
+                    state.tls_client.client_close();
                 }
-                state.tls_client.client_close();
             }
         }
 
