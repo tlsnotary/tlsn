@@ -199,7 +199,7 @@ impl Prover<state::CommitAccepted<Mpc>> {
         };
 
         let (client_io, tlsn_conn) = futures_plex::duplex(BUF_CAP);
-        let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
+        let (client_end, socket_end) = futures_plex::duplex(BUF_CAP);
 
         let prover = Prover {
             ctx: self.ctx,
@@ -214,10 +214,12 @@ impl Prover<state::CommitAccepted<Mpc>> {
                 client_io,
                 output: None,
                 server_socket,
-                client_to_server,
-                server_to_client,
+                client_end,
+                socket_end,
                 client_closed: false,
                 server_closed: false,
+                pipe_closed: false,
+                pipe_drained: false,
             },
         };
 
@@ -270,7 +272,7 @@ impl Prover<state::CommitAccepted<Proxy>> {
         };
 
         let (client_io, tlsn_conn) = futures_plex::duplex(BUF_CAP);
-        let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
+        let (client_end, socket_end) = futures_plex::duplex(BUF_CAP);
 
         let prover = Prover {
             ctx: self.ctx,
@@ -285,10 +287,12 @@ impl Prover<state::CommitAccepted<Proxy>> {
                 client_io,
                 output: None,
                 server_socket: proxy_socket,
-                client_to_server,
-                server_to_client,
+                client_end,
+                socket_end,
                 client_closed: false,
                 server_closed: false,
+                pipe_closed: false,
+                pipe_drained: false,
             },
         };
 
@@ -355,7 +359,10 @@ where
 
         let progressed = Self::io_from_tls_client_progress(state, cx)?;
 
-        if state.tls_client.wants_write_shutdown() {
+        // Only close once nothing is left to forward: the staging channel is
+        // closed and drained, so every TLS byte has been handed to the
+        // transport.
+        if state.tls_client.wants_write_shutdown() && *state.pipe_drained {
             match state.server_socket.as_mut().poll_close(cx) {
                 Poll::Ready(Ok(())) => {
                     state.tls_client.write_shutdown_complete();
@@ -485,9 +492,9 @@ where
             }
         }
 
-        // server_socket -> buf
+        // server_socket -> socket_end
         if let Poll::Ready(write) = state
-            .server_to_client
+            .socket_end
             .poll_write_from(cx, state.server_socket.as_mut())?
         {
             if write == 0 && !*state.server_closed {
@@ -497,9 +504,9 @@ where
             }
         }
 
-        // buf -> tls_client
+        // client_end -> tls_client
         // Always poll to register wakers, then check wants_read_tls()
-        if let Poll::Ready(mut simplex) = state.client_to_server.as_mut().poll_lock_read(cx)
+        if let Poll::Ready(mut simplex) = state.client_end.as_mut().poll_lock_read(cx)
             && let Poll::Ready(buf) = simplex.poll_get(cx)?
         {
             if state.tls_client.wants_read_tls() {
@@ -530,9 +537,12 @@ where
     ) -> Result<bool, Error> {
         let mut progressed = false;
 
-        // tls_client -> buf
-        // Always poll to register wakers, then check wants_write_tls()
-        if let Poll::Ready(mut simplex) = state.client_to_server.as_mut().poll_lock_write(cx)
+        // tls_client -> client_end
+        // Always poll to register wakers, then check wants_write_tls().
+        // Skipped once the client end is closed: writing to it would fail with
+        // a broken pipe, which is expected rather than an error.
+        if !*state.pipe_closed
+            && let Poll::Ready(mut simplex) = state.client_end.as_mut().poll_lock_write(cx)
             && let Poll::Ready(buf) = simplex.poll_mut(cx)?
         {
             let write = state.tls_client.write_tls(buf)?;
@@ -541,11 +551,35 @@ where
                 progressed = true;
             } else if state.tls_client.wants_write_tls() {
                 cx.waker().wake_by_ref();
+            } else if state.tls_client.wants_write_shutdown() && !*state.pipe_closed {
+                // Every TLS byte has been handed to the staging channel.
+                // Closing the client end marks the end of the stream: the
+                // reader below only sees end-of-file once it has drained
+                // everything, which is the signal that the server socket may
+                // be closed.
+                //
+                // Close through the write guard already held: the duplex would
+                // re-take the same lock and only ever get `Pending`, so the
+                // close would never happen. No wake is needed afterwards — the
+                // close wakes the reader itself, and the drain below
+                // re-schedules whenever it makes progress.
+                match Pin::new(&mut *simplex).poll_close(cx) {
+                    Poll::Ready(Ok(())) => *state.pipe_closed = true,
+                    Poll::Ready(Err(e)) => return Err(Error::from(e)),
+                    Poll::Pending => {}
+                }
             }
         }
 
-        // buf -> server_socket
-        poll_write_to_server(cx, &state.server_to_client, state.server_socket.as_mut())?;
+        // socket_end -> server_socket.
+        // Drained is sticky: once the channel is empty it stays empty, and a
+        // later poll that cannot take the lock must not reset it. Stop once it
+        // is set, so nothing is written into a socket that is being closed.
+        if !*state.pipe_drained
+            && poll_write_to_server(cx, &state.socket_end, state.server_socket.as_mut())?
+        {
+            *state.pipe_drained = true;
+        }
 
         // tls_client -> tls_conn
         // Always poll to register wakers, then check wants_read()
@@ -584,27 +618,46 @@ where
     }
 }
 
+/// Moves staged bytes from the socket end of the staging channel into the
+/// server socket.
+///
+/// Returns whether the channel has been fully drained. It reports end-of-file
+/// only after every buffered byte has been read out, so this is a reliable
+/// "nothing is left to forward" signal once the client end is closed.
 fn poll_write_to_server<S>(
     cx: &mut std::task::Context<'_>,
     buf: &futures_plex::DuplexStream,
     server_socket: S,
-) -> Result<(), Error>
+) -> Result<bool, Error>
 where
     S: AsyncWrite + Unpin,
 {
-    match buf.poll_read_to(cx, server_socket) {
+    let drained = match buf.poll_read_to(cx, server_socket) {
         // The destination may accept only part of the buffer per poll.
         // Schedule another poll after making progress so queued records do not
         // wait for unrelated I/O to wake this prover.
-        Poll::Ready(Ok(written)) if written > 0 => cx.waker().wake_by_ref(),
-        // Do not attempt to write into closed sockets.
-        Poll::Ready(Err(err)) if matches!(err.kind(), std::io::ErrorKind::BrokenPipe) => {}
-        Poll::Ready(Err(err)) if matches!(err.kind(), std::io::ErrorKind::ConnectionReset) => {}
+        Poll::Ready(Ok(written)) if written > 0 => {
+            cx.waker().wake_by_ref();
+            false
+        }
+        // End-of-file: the write half is closed and nothing remains buffered.
+        Poll::Ready(Ok(_)) => true,
+        // The socket is gone, so nothing further can be forwarded. Treat this
+        // as drained so the shutdown path still runs, as it did before there
+        // was any drain check.
+        Poll::Ready(Err(err))
+            if matches!(
+                err.kind(),
+                std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
+            ) =>
+        {
+            true
+        }
         Poll::Ready(Err(err)) => return Err(Error::from(err)),
-        _ => {}
-    }
+        Poll::Pending => false,
+    };
 
-    Ok(())
+    Ok(drained)
 }
 
 impl Prover<state::Committed> {

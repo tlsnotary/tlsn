@@ -31,6 +31,16 @@ pub struct CommitAccepted<P> {
 
 pin_project_lite::pin_project! {
     /// State during the MPC-TLS connection.
+    ///
+    /// TLS bytes reach the peer in two hops: the client fills a staging
+    /// channel and the prover forwards from there to the transport. Records the
+    /// client produced can therefore be in flight between the two, so the
+    /// transport must not be closed until that channel is both closed and
+    /// drained.
+    ///
+    /// The field comments below are plain comments because this struct is
+    /// expanded by `pin_project_lite`, which rejects attributes other than
+    /// `#[pin]` on fields; see taiki-e/pin-project-lite#3.
     #[project = ConnectedProj]
     pub struct Connected<S> {
         pub(crate) server_name: ServerName,
@@ -39,14 +49,31 @@ pin_project_lite::pin_project! {
         #[pin]
         pub(crate) client_io: DuplexStream,
         pub(crate) output: Option<(Context, ProverZk, TlsOutput)>,
+        // Transport carrying TLS bytes towards the peer. In proxy mode this is
+        // the mux stream to the verifier, which relays it to the server.
         #[pin]
         pub(crate) server_socket: S,
+        // The client's end of the staging channel. The TLS client writes its
+        // records here; they surface on `socket_end` for forwarding to
+        // `server_socket`. Bytes arriving from the server are written to
+        // `socket_end` and read from here.
         #[pin]
-        pub(crate) client_to_server: DuplexStream,
+        pub(crate) client_end: DuplexStream,
+        // The socket's end of the same channel: outbound bytes written to
+        // `client_end` surface here and are forwarded to `server_socket`, and
+        // inbound bytes read from `server_socket` are staged here for the
+        // client to read.
         #[pin]
-        pub(crate) server_to_client: DuplexStream,
+        pub(crate) socket_end: DuplexStream,
         pub(crate) client_closed: bool,
-        pub(crate) server_closed: bool
+        pub(crate) server_closed: bool,
+        // Whether `client_end` has been closed for writing. That marks the end
+        // of the TLS output stream: the channel only reports end-of-file once
+        // every byte has been read out, which is what makes it a reliable
+        // "everything has been handed to the transport" signal.
+        pub(crate) pipe_closed: bool,
+        // Whether those bytes have all been forwarded to `server_socket`.
+        pub(crate) pipe_drained: bool
     }
 }
 

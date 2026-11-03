@@ -10,7 +10,7 @@ use std::{
 
 use futures::{
     AsyncReadExt, AsyncWriteExt,
-    io::AsyncWrite,
+    io::{AsyncRead, AsyncWrite},
     task::{ArcWake, waker},
 };
 use tlsn_core::connection::ServerName;
@@ -86,11 +86,25 @@ impl TestProver {
         tls_client: Box<dyn TlsClient<Error = Error> + Send>,
         client_io_cap: usize,
     ) -> Self {
+        Self::new_with_caps(tls_client, client_io_cap, BUF_CAP, BUF_CAP)
+    }
+
+    /// Like [`Self::new`], but with explicit capacities.
+    ///
+    /// A small `staging_cap` or `server_cap` forces the prover to spread the
+    /// work over several polls, which is what exercises draining and the
+    /// waker behaviour around it.
+    pub(super) fn new_with_caps(
+        tls_client: Box<dyn TlsClient<Error = Error> + Send>,
+        client_io_cap: usize,
+        staging_cap: usize,
+        server_cap: usize,
+    ) -> Self {
         let decrypt = tls_client.decrypt();
 
         let (client_io, app_io) = futures_plex::duplex(client_io_cap);
-        let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
-        let (server_socket, server_peer) = futures_plex::duplex(BUF_CAP);
+        let (client_end, socket_end) = futures_plex::duplex(staging_cap);
+        let (server_socket, server_peer) = futures_plex::duplex(server_cap);
 
         let state = state::Connected {
             server_name: ServerName::Dns("example.com".try_into().unwrap()),
@@ -99,10 +113,12 @@ impl TestProver {
             client_io,
             output: None,
             server_socket,
-            client_to_server,
-            server_to_client,
+            client_end,
+            socket_end,
             client_closed: false,
             server_closed: false,
+            pipe_closed: false,
+            pipe_drained: false,
         };
 
         let wake_counter = WakeCounter::new();
@@ -157,6 +173,28 @@ impl TestProver {
         let mut cx = Context::from_waker(&self.waker);
         let mut proj = self.state.as_mut().project();
         Prover::<state::Connected<futures_plex::DuplexStream>>::poll_io(&mut proj, &mut cx)
+    }
+
+    /// Polls the server peer without blocking.
+    ///
+    /// `Ready(Ok(0))` means the prover closed its side and everything it wrote
+    /// has been read out.
+    pub(super) fn poll_read_server(
+        &mut self,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.server_peer).poll_read(cx, buf)
+    }
+
+    /// Whether the staging channel has been closed for writing.
+    pub(super) fn pipe_closed(&self) -> bool {
+        self.state.as_ref().get_ref().pipe_closed
+    }
+
+    /// Whether the staging channel has been fully forwarded to the socket.
+    pub(super) fn pipe_drained(&self) -> bool {
+        self.state.as_ref().get_ref().pipe_drained
     }
 
     /// Returns and resets the number of wake-ups observed.
