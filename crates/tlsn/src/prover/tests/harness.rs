@@ -119,6 +119,7 @@ impl TestProver {
             server_closed: false,
             pipe_closed: false,
             pipe_drained: false,
+            app_eof_sent: false,
         };
 
         let wake_counter = WakeCounter::new();

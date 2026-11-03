@@ -17,8 +17,15 @@ pub(crate) struct TlsCommitRequestMsg {
 
 /// One-way message telling the verifier that the prover is done with the
 /// proxy connection.
+///
+/// Carries how many TLS bytes the prover consumed in each direction.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct ProxyFinished;
+pub(crate) struct ProxyFinished {
+    /// Bytes the prover sent to the server.
+    pub(crate) tls_sent: u64,
+    /// Bytes the prover received from the server.
+    pub(crate) tls_recv: u64,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ProveRequestMsg {

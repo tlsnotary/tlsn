@@ -9,7 +9,7 @@ use crate::{
     Error, Mpc, PROXY_STREAM_PREFIX, Proxy, Result,
     deps::{VerifierDeps, VerifierMpcDeps, VerifierProxyDeps},
     future::{Aux, poll_with},
-    msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
+    msg::{ProveRequestMsg, ProxyFinished, Response, TlsCommitRequestMsg},
     proxy::InspectReader,
     session::SessionClosure,
     tag::verify_tags,
@@ -330,7 +330,11 @@ type FusedProxyForward<'a> = futures::future::Fuse<ProxyForwardFuture<'a>>;
 /// The first event observed while forwarding proxy traffic.
 enum FirstProxyEvent<'a> {
     /// The prover signalled that the server read side is finished.
-    Finished(Result<()>, FusedProxyForward<'a>, FusedProxyForward<'a>),
+    Finished(
+        Result<ProxyFinished>,
+        FusedProxyForward<'a>,
+        FusedProxyForward<'a>,
+    ),
     /// p2s completed first; s2p remains.
     ProverToServer(std::io::Result<()>, FusedProxyForward<'a>),
     /// s2p completed first; p2s remains.
@@ -387,6 +391,7 @@ impl Verifier<state::CommitAccepted<Proxy>> {
         let (prover_read, prover_write) = prover_socket.split();
         let (server_read, server_write) = server_socket.split();
 
+        let finished_msg;
         let conn_time = {
             let mut prover_write = prover_write;
             let mut server_write = server_write;
@@ -394,10 +399,26 @@ impl Verifier<state::CommitAccepted<Proxy>> {
             let mut server_reader = InspectReader::new(server_read, &mut recv_buf);
 
             let p2s: ProxyForwardFuture<'_> = Box::pin(async {
-                // Failure to write prover data to the server is fatal.
-                futures::io::copy(&mut prover_reader, &mut server_write).await?;
-                if let Err(err) = server_write.close().await {
-                    log_proxy_close_error("server", &err);
+                // The server can close its read side while the prover is still
+                // finishing its half-close. Keep reading and recording the
+                // prover's bytes so both sides build the same sent transcript.
+                match futures::io::copy(&mut prover_reader, &mut server_write).await {
+                    Ok(_) => {
+                        if let Err(err) = server_write.close().await {
+                            log_proxy_close_error("server", &err);
+                        }
+                    }
+                    Err(err) if is_transport_gone(&err) => {
+                        debug!(
+                            "server write side is gone; recording remaining prover bytes: {err}"
+                        );
+                        // The destination is gone, but the remaining prover
+                        // bytes must still be read and recorded, and the prover
+                        // must be able to reach EOF.
+                        futures::io::copy(&mut prover_reader, &mut futures::io::sink()).await?;
+                        let _ = server_write.close().await;
+                    }
+                    Err(err) => return Err(err),
                 }
                 Ok::<(), std::io::Error>(())
             });
@@ -424,7 +445,7 @@ impl Verifier<state::CommitAccepted<Proxy>> {
 
                 match first {
                     FirstProxyEvent::Finished(finished_result, p2s, _s2p) => {
-                        finished_result?;
+                        finished_msg = finished_result?;
 
                         // The prover signalled that the server read side is
                         // finished. s2p is no longer needed, but p2s may still
@@ -449,7 +470,7 @@ impl Verifier<state::CommitAccepted<Proxy>> {
                         // Keep forwarding server data until the prover
                         // signals that the server read side is finished.
                         let (finished_result, s2p) = poll_with(verifier.wait_finished(), s2p).await;
-                        finished_result?;
+                        finished_msg = finished_result?;
 
                         match s2p {
                             Aux::Pending(future) => {
@@ -482,7 +503,8 @@ impl Verifier<state::CommitAccepted<Proxy>> {
                                     .with_source(err)
                             })
                         };
-                        futures::try_join!(verifier.wait_finished(), p2s)?;
+                        let (finished_result, ()) = futures::try_join!(verifier.wait_finished(), p2s)?;
+                        finished_msg = finished_result;
                     }
                 }
             }
@@ -499,7 +521,9 @@ impl Verifier<state::CommitAccepted<Proxy>> {
             .ok_or_else(|| Error::io().with_msg("prover closed before sending any data"))?;
 
         let (mut ctx, mut vm, output, cf_vd_check, sf_vd_check) =
-            verifier.finalize(&sent_buf, &recv_buf, conn_time).await?;
+            verifier
+                .finalize(&sent_buf, &recv_buf, conn_time, &finished_msg)
+                .await?;
 
         let keys = output.keys;
         let tls_transcript = output.tls_transcript;
@@ -702,6 +726,16 @@ impl Verifier<state::Verify> {
             },
         })
     }
+}
+
+fn is_transport_gone(err: &std::io::Error) -> bool {
+    matches!(
+        err.kind(),
+        std::io::ErrorKind::BrokenPipe
+            | std::io::ErrorKind::ConnectionReset
+            | std::io::ErrorKind::ConnectionAborted
+            | std::io::ErrorKind::NotConnected
+    )
 }
 
 fn log_proxy_close_error(peer: &str, err: &std::io::Error) {

@@ -44,12 +44,12 @@ pub(crate) struct ProxyTlsClient {
     traffic: TlsBytes,
     /// Whether the application client closed its side.
     client_closed: bool,
+    /// Whether decrypted application data is still waiting to be read.
+    plaintext_pending: bool,
     /// Whether the server transport closed abruptly (EOF/BrokenPipe).
     server_closed: bool,
     /// Whether the server sent a TLS close_notify.
     server_tls_closed: bool,
-    /// Whether ProxyFinished has been sent to the verifier.
-    finished_sent: bool,
     /// Whether the transport write half should be closed.
     write_shutdown_requested: bool,
     /// Whether the transport write half has been closed.
@@ -71,17 +71,11 @@ enum State {
         sent_close_notify: bool,
         prover: Box<ProxyProver>,
     },
-    SendingFinished {
-        sent_close_notify: bool,
-        fut: Pin<SendFinishedFuture>,
-    },
     Finalizing {
         fut: Pin<FinalizeFuture>,
     },
     Error,
 }
-
-type SendFinishedFuture = Box<dyn Future<Output = Result<Box<ProxyProver>, TlsnError>> + Send>;
 
 type FinalizeFuture =
     Box<dyn Future<Output = Result<(Context, ProverZk, TlsOutput), TlsnError>> + Send>;
@@ -136,9 +130,9 @@ impl ProxyTlsClient {
             time: None,
             traffic: TlsBytes::default(),
             client_closed: false,
+            plaintext_pending: false,
             server_closed: false,
             server_tls_closed: false,
-            finished_sent: false,
             write_shutdown_requested: false,
             write_shutdown_done: false,
             state: State::Init { prover },
@@ -198,6 +192,7 @@ impl TlsClient for ProxyTlsClient {
             Err(e) => return Err(TlsnError::internal().with_source(e)),
         }?;
         self.traffic.app_recv.extend_from_slice(&buf[..n]);
+        self.plaintext_pending = n > 0;
 
         Ok(n)
     }
@@ -219,6 +214,14 @@ impl TlsClient for ProxyTlsClient {
 
     fn is_handshaking(&self) -> bool {
         matches!(self.state, State::Init { .. } | State::Handshaking { .. })
+    }
+
+    fn incoming_finished(&self) -> bool {
+        self.server_tls_closed || self.server_closed
+    }
+
+    fn plaintext_pending(&self) -> bool {
+        self.plaintext_pending
     }
 
     fn server_close(&mut self) {
@@ -294,6 +297,8 @@ impl TlsClient for ProxyTlsClient {
                         .with_source(err)
                 })?;
 
+                self.plaintext_pending = io_state.plaintext_bytes_to_read() > 0;
+
                 if io_state.peer_has_closed() && !self.server_tls_closed {
                     self.server_tls_closed = true;
                     debug!("server closed its TLS write side");
@@ -319,25 +324,13 @@ impl TlsClient for ProxyTlsClient {
                     return Poll::Pending;
                 }
 
-                // The server will send no more data. Tell the verifier so it
-                // can stop forwarding server data while the prover continues
-                // sending any remaining client data.
-                if self.server_tls_closed && !self.finished_sent {
-                    let fut = Box::pin(async move {
-                        let mut prover = prover;
-                        prover.send_finished().await?;
-                        Ok(prover)
-                    });
-
-                    self.state = State::SendingFinished {
-                        sent_close_notify,
-                        fut,
-                    };
-                    return self.poll(cx);
-                }
-
+                // Send ProxyFinished once, when both directions are finished:
+                // the prover's own close_notify has been handed to the proxy
+                // stream and the write half is closed, and the server has
+                // either sent its TLS close_notify or the proxy stream reached
+                // EOF. The counts are final at this point.
                 let finalize_now = self.write_shutdown_done
-                    && (self.server_closed || (self.client_closed && sent_close_notify));
+                    && (self.server_tls_closed || self.server_closed);
 
                 if finalize_now {
                     let ms = self.ms_log.take();
@@ -350,17 +343,15 @@ impl TlsClient for ProxyTlsClient {
                         TlsnError::internal().with_msg("connection timestamp is not set")
                     })?;
                     let traffic = std::mem::take(&mut self.traffic);
-                    let already_finished = self.finished_sent;
+                    let tls_sent = traffic.tls_sent.len() as u64;
+                    let tls_recv = traffic.tls_recv.len() as u64;
 
                     let fut = Box::pin(async move {
                         let mut prover = prover;
-                        if !already_finished {
-                            prover.send_finished().await?;
-                        }
+                        prover.send_finished(tls_sent, tls_recv).await?;
                         prover.finalize(ms, time, traffic).await
                     });
 
-                    self.finished_sent = true;
                     self.state = State::Finalizing { fut };
                     self.poll(cx)
                 } else {
@@ -369,29 +360,6 @@ impl TlsClient for ProxyTlsClient {
                         prover,
                     };
                     Poll::Pending
-                }
-            }
-            State::SendingFinished {
-                sent_close_notify,
-                mut fut,
-            } => {
-                debug!("inner client is sending proxy finished");
-                match fut.poll_unpin(cx)? {
-                    Poll::Ready(prover) => {
-                        self.finished_sent = true;
-                        self.state = State::Connected {
-                            sent_close_notify,
-                            prover,
-                        };
-                        self.poll(cx)
-                    }
-                    Poll::Pending => {
-                        self.state = State::SendingFinished {
-                            sent_close_notify,
-                            fut,
-                        };
-                        Poll::Pending
-                    }
                 }
             }
             State::Finalizing { mut fut } => {

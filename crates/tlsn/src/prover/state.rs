@@ -73,7 +73,9 @@ pin_project_lite::pin_project! {
         // "everything has been handed to the transport" signal.
         pub(crate) pipe_closed: bool,
         // Whether those bytes have all been forwarded to `server_socket`.
-        pub(crate) pipe_drained: bool
+        pub(crate) pipe_drained: bool,
+        // Whether end-of-file has been queued for the application side.
+        pub(crate) app_eof_sent: bool
     }
 }
 

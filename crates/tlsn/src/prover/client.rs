@@ -60,6 +60,20 @@ pub(crate) trait TlsClient {
         false
     }
 
+    /// Returns whether the peer's TLS write side is finished.
+    ///
+    /// For proxy mode this becomes true when rustls has processed the server's
+    /// `close_notify`, or when the transport has reached EOF and everything
+    /// buffered before it has been fed to rustls.
+    fn incoming_finished(&self) -> bool {
+        false
+    }
+
+    /// Returns whether decrypted application data is still waiting to be read.
+    fn plaintext_pending(&self) -> bool {
+        false
+    }
+
     /// Returns true when the write half of the transport can be closed.
     fn wants_write_shutdown(&self) -> bool {
         false

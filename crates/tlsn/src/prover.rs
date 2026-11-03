@@ -220,6 +220,7 @@ impl Prover<state::CommitAccepted<Mpc>> {
                 server_closed: false,
                 pipe_closed: false,
                 pipe_drained: false,
+                app_eof_sent: false,
             },
         };
 
@@ -293,6 +294,7 @@ impl Prover<state::CommitAccepted<Proxy>> {
                 server_closed: false,
                 pipe_closed: false,
                 pipe_drained: false,
+                app_eof_sent: false,
             },
         };
 
@@ -380,6 +382,21 @@ where
 
         let progressed = Self::io_from_tls_client_progress(state, cx)?;
 
+        // The peer's TLS write side is finished. Give the application EOF once
+        // no decrypted plaintext is left, so a reader that waits for EOF can
+        // close its write side and let the prover finalize. After the EOF is
+        // queued, the prover must not write to `client_io` again.
+        if !*state.app_eof_sent
+            && state.tls_client.incoming_finished()
+            && !state.tls_client.plaintext_pending()
+        {
+            match state.client_io.as_mut().poll_close(cx) {
+                Poll::Ready(Ok(())) => *state.app_eof_sent = true,
+                Poll::Ready(Err(e)) => return Err(Error::from(e)),
+                Poll::Pending => {}
+            }
+        }
+
         // Only close once nothing is left to forward: the staging channel is
         // closed and drained, so every TLS byte has been handed to the
         // transport.
@@ -387,6 +404,8 @@ where
             match state.server_socket.as_mut().poll_close(cx) {
                 Poll::Ready(Ok(())) => {
                     state.tls_client.write_shutdown_complete();
+                    // Wake the prover loop so its next poll re-polls the TLS
+                    // client and observes the completed write shutdown.
                     cx.waker().wake_by_ref();
                 }
                 Poll::Ready(Err(e)) => return Err(Error::from(e)),
@@ -513,15 +532,34 @@ where
         }
 
         // server_socket -> socket_end
-        if let Poll::Ready(write) = state
+        match state
             .socket_end
-            .poll_write_from(cx, state.server_socket.as_mut())?
+            .poll_write_from(cx, state.server_socket.as_mut())
         {
-            if write == 0 && !*state.server_closed {
-                *state.server_closed = true;
-            } else if write > 0 {
-                cx.waker().wake_by_ref();
+            Poll::Ready(Ok(write)) => {
+                if write == 0 && !*state.server_closed {
+                    *state.server_closed = true;
+                } else if write > 0 {
+                    cx.waker().wake_by_ref();
+                }
             }
+            Poll::Ready(Err(err))
+                if matches!(
+                    err.kind(),
+                    std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
+                ) =>
+            {
+                // In MPC mode `server_socket` is the server connection, so an
+                // abrupt close here is a server RST. In proxy mode it is the
+                // mux stream to the verifier, so the same error means a
+                // verifier/mux failure — which should be fatal. This layer does
+                // not know the mode, so treat it as the server transport
+                // closing in both cases; the proxy session will then fail when
+                // it next needs the verifier.
+                *state.server_closed = true;
+            }
+            Poll::Ready(Err(err)) => return Err(Error::from(err)),
+            Poll::Pending => {}
         }
 
         // client_end -> tls_client
@@ -603,7 +641,9 @@ where
 
         // tls_client -> tls_conn
         // Always poll to register wakers, then check wants_read()
-        if let Poll::Ready(mut simplex) = state.client_io.as_mut().poll_lock_write(cx) {
+        if !*state.app_eof_sent
+            && let Poll::Ready(mut simplex) = state.client_io.as_mut().poll_lock_write(cx)
+        {
             match simplex.poll_mut(cx) {
                 Poll::Ready(Ok(buf)) if state.tls_client.wants_read() => {
                     let read = state.tls_client.read(buf)?;
