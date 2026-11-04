@@ -219,6 +219,7 @@ impl Prover<state::CommitAccepted<Mpc>> {
                 client_end,
                 socket_end,
                 close: CloseState::new(),
+                server_transport_closed: false,
                 pipe_closed: false,
                 pipe_drained: false,
             },
@@ -291,6 +292,7 @@ impl Prover<state::CommitAccepted<Proxy>> {
                 client_end,
                 socket_end,
                 close: CloseState::new(),
+                server_transport_closed: false,
                 pipe_closed: false,
                 pipe_drained: false,
             },
@@ -388,6 +390,11 @@ where
             && state.tls_client.incoming_finished()
             && !state.tls_client.plaintext_pending()
         {
+            // The inbound side is definitively finished: the peer closed and
+            // all plaintext was delivered to the app.
+            state.close.mark_peer_closed();
+            state.close.mark_drained();
+
             match state.client_io.as_mut().poll_close(cx) {
                 Poll::Ready(Ok(())) => state.close.mark_eof_delivered(),
                 Poll::Ready(Err(e)) => return Err(Error::from(e)),
@@ -521,7 +528,7 @@ where
                         simplex.advance(write);
                     }
                 }
-            } else if !state.close.close_requested() && !state.close.peer_closed() {
+            } else if !state.close.close_requested() && !*state.server_transport_closed {
                 state.close.mark_close_requested();
                 if !state.tls_client.is_handshaking() {
                     state.tls_client.client_close();
@@ -535,7 +542,8 @@ where
             .poll_write_from(cx, state.server_socket.as_mut())
         {
             Poll::Ready(Ok(write)) => {
-                if write == 0 && !state.close.peer_closed() {
+                if write == 0 && !*state.server_transport_closed {
+                    *state.server_transport_closed = true;
                     state.close.mark_peer_closed();
                 } else if write > 0 {
                     cx.waker().wake_by_ref();
@@ -554,6 +562,7 @@ where
                 // not know the mode, so treat it as the server transport
                 // closing in both cases; the proxy session will then fail when
                 // it next needs the verifier.
+                *state.server_transport_closed = true;
                 state.close.mark_peer_closed();
             }
             Poll::Ready(Err(err)) => return Err(Error::from(err)),
@@ -572,7 +581,7 @@ where
                     cx.waker().wake_by_ref();
                 }
             }
-        } else if state.close.peer_closed() {
+        } else if *state.server_transport_closed {
             state.tls_client.server_close();
         }
 

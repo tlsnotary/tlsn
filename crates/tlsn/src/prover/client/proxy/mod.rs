@@ -235,6 +235,7 @@ impl TlsClient for ProxyTlsClient {
     }
 
     fn write_shutdown_complete(&mut self) {
+        self.close.mark_outbound_flushed();
         self.close.mark_outbound_closed();
     }
 

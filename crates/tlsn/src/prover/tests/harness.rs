@@ -116,6 +116,7 @@ impl TestProver {
             client_end,
             socket_end,
             close: CloseState::new(),
+            server_transport_closed: false,
             pipe_closed: false,
             pipe_drained: false,
         };

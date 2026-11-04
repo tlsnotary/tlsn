@@ -110,13 +110,37 @@ impl CloseState {
     }
 
     fn advance_outbound(&mut self, next: Outbound) {
-        if next > self.outbound {
+        let valid = next <= self.outbound
+            || matches!(
+                (self.outbound, next),
+                (Outbound::Open, Outbound::Closing)
+                    | (Outbound::Closing, Outbound::Flushed)
+                    | (Outbound::Flushed, Outbound::Closed)
+            );
+        debug_assert!(
+            valid,
+            "outbound close state skipped: {:?} -> {:?}",
+            self.outbound, next
+        );
+        if valid && next > self.outbound {
             self.outbound = next;
         }
     }
 
     fn advance_inbound(&mut self, next: Inbound) {
-        if next > self.inbound {
+        let valid = next <= self.inbound
+            || matches!(
+                (self.inbound, next),
+                (Inbound::Open, Inbound::PeerClosed)
+                    | (Inbound::PeerClosed, Inbound::Drained)
+                    | (Inbound::Drained, Inbound::EofDelivered)
+            );
+        debug_assert!(
+            valid,
+            "inbound close state skipped: {:?} -> {:?}",
+            self.inbound, next
+        );
+        if valid && next > self.inbound {
             self.inbound = next;
         }
     }
@@ -180,6 +204,22 @@ mod tests {
         state.mark_drained();
         assert_eq!(state.inbound, Inbound::EofDelivered);
         assert!(state.eof_delivered());
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "inbound close state skipped")]
+    fn inbound_steps_cannot_be_skipped() {
+        let mut state = CloseState::new();
+        state.mark_eof_delivered();
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "outbound close state skipped")]
+    fn outbound_steps_cannot_be_skipped() {
+        let mut state = CloseState::new();
+        state.mark_outbound_closed();
     }
 
     #[test]

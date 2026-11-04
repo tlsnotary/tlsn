@@ -67,6 +67,10 @@ pin_project_lite::pin_project! {
         pub(crate) socket_end: DuplexStream,
         // Per-direction close state at the transport layer.
         pub(crate) close: CloseState,
+        // Whether the server transport itself reached EOF/reset. Kept separate
+        // from the inbound close state: delivering app EOF does not mean the
+        // transport is gone.
+        pub(crate) server_transport_closed: bool,
         // Whether `client_end` has been closed for writing. That marks the end
         // of the TLS output stream: the channel only reports end-of-file once
         // every byte has been read out, which is what makes it a reliable
