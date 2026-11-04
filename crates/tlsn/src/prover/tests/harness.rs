@@ -17,7 +17,7 @@ use tlsn_core::connection::ServerName;
 
 use crate::{
     Error, Result,
-    prover::{BUF_CAP, Prover, ProverControl, client::TlsClient, state},
+    prover::{BUF_CAP, Prover, ProverControl, client::TlsClient, close::CloseState, state},
 };
 
 /// Counts wake-ups without scheduling any work.
@@ -115,11 +115,9 @@ impl TestProver {
             server_socket,
             client_end,
             socket_end,
-            client_closed: false,
-            server_closed: false,
+            close: CloseState::new(),
             pipe_closed: false,
             pipe_drained: false,
-            app_eof_sent: false,
         };
 
         let wake_counter = WakeCounter::new();

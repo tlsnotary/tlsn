@@ -13,7 +13,7 @@ use tlsn_core::{
 use crate::{
     Error, TlsOutput,
     deps::{ProverDeps, ProverZk},
-    prover::{ProverControl, client::TlsClient},
+    prover::{ProverControl, client::TlsClient, close::CloseState},
 };
 
 /// Entry state
@@ -65,17 +65,15 @@ pin_project_lite::pin_project! {
         // client to read.
         #[pin]
         pub(crate) socket_end: DuplexStream,
-        pub(crate) client_closed: bool,
-        pub(crate) server_closed: bool,
+        // Per-direction close state at the transport layer.
+        pub(crate) close: CloseState,
         // Whether `client_end` has been closed for writing. That marks the end
         // of the TLS output stream: the channel only reports end-of-file once
         // every byte has been read out, which is what makes it a reliable
         // "everything has been handed to the transport" signal.
         pub(crate) pipe_closed: bool,
         // Whether those bytes have all been forwarded to `server_socket`.
-        pub(crate) pipe_drained: bool,
-        // Whether end-of-file has been queued for the application side.
-        pub(crate) app_eof_sent: bool
+        pub(crate) pipe_drained: bool
     }
 }
 

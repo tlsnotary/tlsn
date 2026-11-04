@@ -1,6 +1,7 @@
 //! Prover.
 
 mod client;
+mod close;
 mod conn;
 mod control;
 mod future;
@@ -21,6 +22,7 @@ use crate::{
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     prover::{
         client::{MpcTlsClient, ProxyTlsClient, TlsClient},
+        close::CloseState,
         future::FutureState,
         state::ConnectedProj,
     },
@@ -216,11 +218,9 @@ impl Prover<state::CommitAccepted<Mpc>> {
                 server_socket,
                 client_end,
                 socket_end,
-                client_closed: false,
-                server_closed: false,
+                close: CloseState::new(),
                 pipe_closed: false,
                 pipe_drained: false,
-                app_eof_sent: false,
             },
         };
 
@@ -290,11 +290,9 @@ impl Prover<state::CommitAccepted<Proxy>> {
                 server_socket: proxy_socket,
                 client_end,
                 socket_end,
-                client_closed: false,
-                server_closed: false,
+                close: CloseState::new(),
                 pipe_closed: false,
                 pipe_drained: false,
-                app_eof_sent: false,
             },
         };
 
@@ -362,7 +360,7 @@ where
         // be reading the response; the server still drives the handshake. Hold
         // the close until the handshake is over so already-written plaintext
         // is sent before the TLS close_notify.
-        if *state.client_closed
+        if state.close.close_requested()
             && state.output.is_none()
             && was_handshaking
             && !state.tls_client.is_handshaking()
@@ -374,8 +372,8 @@ where
         // A peer that sends close_notify has finished its TLS stream even if
         // it keeps the TCP connection open. Treat that as server closure so
         // the prover does not wait for a FIN that may never arrive.
-        if !*state.server_closed && state.tls_client.received_close_notify() {
-            *state.server_closed = true;
+        if !state.close.peer_closed() && state.tls_client.received_close_notify() {
+            state.close.mark_peer_closed();
             state.tls_client.server_close();
             cx.waker().wake_by_ref();
         }
@@ -386,12 +384,12 @@ where
         // no decrypted plaintext is left, so a reader that waits for EOF can
         // close its write side and let the prover finalize. After the EOF is
         // queued, the prover must not write to `client_io` again.
-        if !*state.app_eof_sent
+        if !state.close.eof_delivered()
             && state.tls_client.incoming_finished()
             && !state.tls_client.plaintext_pending()
         {
             match state.client_io.as_mut().poll_close(cx) {
-                Poll::Ready(Ok(())) => *state.app_eof_sent = true,
+                Poll::Ready(Ok(())) => state.close.mark_eof_delivered(),
                 Poll::Ready(Err(e)) => return Err(Error::from(e)),
                 Poll::Pending => {}
             }
@@ -523,8 +521,8 @@ where
                         simplex.advance(write);
                     }
                 }
-            } else if !*state.client_closed && !*state.server_closed {
-                *state.client_closed = true;
+            } else if !state.close.close_requested() && !state.close.peer_closed() {
+                state.close.mark_close_requested();
                 if !state.tls_client.is_handshaking() {
                     state.tls_client.client_close();
                 }
@@ -537,8 +535,8 @@ where
             .poll_write_from(cx, state.server_socket.as_mut())
         {
             Poll::Ready(Ok(write)) => {
-                if write == 0 && !*state.server_closed {
-                    *state.server_closed = true;
+                if write == 0 && !state.close.peer_closed() {
+                    state.close.mark_peer_closed();
                 } else if write > 0 {
                     cx.waker().wake_by_ref();
                 }
@@ -556,7 +554,7 @@ where
                 // not know the mode, so treat it as the server transport
                 // closing in both cases; the proxy session will then fail when
                 // it next needs the verifier.
-                *state.server_closed = true;
+                state.close.mark_peer_closed();
             }
             Poll::Ready(Err(err)) => return Err(Error::from(err)),
             Poll::Pending => {}
@@ -574,7 +572,7 @@ where
                     cx.waker().wake_by_ref();
                 }
             }
-        } else if *state.server_closed {
+        } else if state.close.peer_closed() {
             state.tls_client.server_close();
         }
 
@@ -641,7 +639,7 @@ where
 
         // tls_client -> tls_conn
         // Always poll to register wakers, then check wants_read()
-        if !*state.app_eof_sent
+        if !state.close.eof_delivered()
             && let Poll::Ready(mut simplex) = state.client_io.as_mut().poll_lock_write(cx)
         {
             match simplex.poll_mut(cx) {
