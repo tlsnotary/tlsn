@@ -329,8 +329,14 @@ impl TlsClient for ProxyTlsClient {
                 // stream and the write half is closed, and the server has
                 // either sent its TLS close_notify or the proxy stream reached
                 // EOF. The counts are final at this point.
+                //
+                // Do not finalize while rustls still holds decrypted plaintext:
+                // `wants_read` is false once the state leaves `Connected`, so
+                // the prover would never hand that plaintext to the
+                // application and the response would be lost.
                 let finalize_now = self.write_shutdown_done
-                    && (self.server_tls_closed || self.server_closed);
+                    && (self.server_tls_closed || self.server_closed)
+                    && !self.plaintext_pending;
 
                 if finalize_now {
                     let ms = self.ms_log.take();
