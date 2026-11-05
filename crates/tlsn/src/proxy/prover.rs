@@ -66,10 +66,10 @@ impl ProxyProver {
             .send(ProxyFinished { tls_sent, tls_recv })
             .await
             .map_err(|e| {
-            TlsnError::io()
-                .with_msg("failed to send proxy finished message")
-                .with_source(e)
-        })
+                TlsnError::io()
+                    .with_msg("failed to send proxy finished message")
+                    .with_source(e)
+            })
     }
 
     pub(crate) async fn finalize(

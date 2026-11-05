@@ -504,7 +504,8 @@ impl Verifier<state::CommitAccepted<Proxy>> {
                                     .with_source(err)
                             })
                         };
-                        let (finished_result, ()) = futures::try_join!(verifier.wait_finished(), p2s)?;
+                        let (finished_result, ()) =
+                            futures::try_join!(verifier.wait_finished(), p2s)?;
                         finished_msg = finished_result;
                     }
                 }
@@ -521,10 +522,9 @@ impl Verifier<state::CommitAccepted<Proxy>> {
         let conn_time = conn_time
             .ok_or_else(|| Error::io().with_msg("prover closed before sending any data"))?;
 
-        let (mut ctx, mut vm, output, cf_vd_check, sf_vd_check) =
-            verifier
-                .finalize(&sent_buf, &recv_buf, conn_time, &finished_msg)
-                .await?;
+        let (mut ctx, mut vm, output, cf_vd_check, sf_vd_check) = verifier
+            .finalize(&sent_buf, &recv_buf, conn_time, &finished_msg)
+            .await?;
 
         let keys = output.keys;
         let tls_transcript = output.tls_transcript;

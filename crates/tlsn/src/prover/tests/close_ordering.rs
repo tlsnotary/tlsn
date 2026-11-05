@@ -133,7 +133,10 @@ fn drain_server(prover: &mut TestProver) -> Vec<u8> {
 fn server_finished(prover: &mut TestProver) -> bool {
     let mut cx = std::task::Context::from_waker(noop_waker_ref());
     let mut buf = [0u8; 1];
-    matches!(prover.poll_read_server(&mut cx, &mut buf), Poll::Ready(Ok(0)))
+    matches!(
+        prover.poll_read_server(&mut cx, &mut buf),
+        Poll::Ready(Ok(0))
+    )
 }
 
 /// The transport is not closed while TLS bytes are still staged: every byte

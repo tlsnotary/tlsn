@@ -54,8 +54,8 @@
 //! which is why the grid is sparse rather than complete. The cells someone is
 //! most likely to expect and not find are listed here:
 //!
-//! - `Proxy × VerifierTransport × Echo` is absent because a proxy verifier
-//!   owns the server socket during `run()`. Dropping the verifier object while
+//! - `Proxy × VerifierTransport × Echo` is absent because a proxy verifier owns
+//!   the server socket during `run()`. Dropping the verifier object while
 //!   keeping its transport alive has no separate meaning: the socket goes with
 //!   it. `mpc verifier app-object gone, transport alive` covers the case where
 //!   the two really are separable.
@@ -64,8 +64,8 @@
 //!   a verifier that reads the server itself, so "the prover is gone and there
 //!   is no server" leaves a verifier with something to report. In MPC the
 //!   verifier has no server connection of its own, so the same loss is covered
-//!   by `mpc prover future gone mid-handshake` and
-//!   `mpc prover gone before verify`.
+//!   by `mpc prover future gone mid-handshake` and `mpc prover gone before
+//!   verify`.
 //!
 //! - `Mpc × ServerAborted × Echo` as a pure server outcome is covered by
 //!   `server_behaviour.rs`. The combined `mpc verifier gone then server closes`
@@ -1207,7 +1207,8 @@ impl Scenario {
                         }
                     });
 
-                // Let both commit futures start before the row's loss step runs.
+                // Let both commit futures start before the row's loss step
+                // runs.
                 tokio::task::yield_now().await;
 
                 Scenario {
