@@ -336,6 +336,22 @@ where
         Self::poll_io(&mut state, cx)?;
 
         if state.output.is_some() {
+            // The TLS side is finished producing bytes, but those bytes may
+            // still be staged between the TLS client and the transport. Close
+            // the staging channel, then wait until its reader reports EOF
+            // before closing the transport write half.
+            if !*state.pipe_closed {
+                ready!(state.client_end.as_mut().poll_close(cx))?;
+                *state.pipe_closed = true;
+            }
+
+            if !*state.pipe_drained {
+                if !poll_write_to_server(cx, &state.socket_end, state.server_socket.as_mut())? {
+                    return Poll::Pending;
+                }
+                *state.pipe_drained = true;
+            }
+
             ready!(state.client_io.poll_close(cx))?;
             ready!(state.server_socket.poll_close(cx))?;
 
