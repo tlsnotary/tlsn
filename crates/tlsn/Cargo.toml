@@ -66,6 +66,7 @@ webpki-roots = { workspace = true }
 web-time = { workspace = true }
 
 [dev-dependencies]
+futures-rustls = { workspace = true }
 mpz-ideal-vm = { workspace = true }
 rstest = { workspace = true }
 tlsn-core = { workspace = true, features = ["fixtures"] }
