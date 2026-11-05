@@ -355,7 +355,11 @@ impl TlsClient for MpcTlsClient {
                         self.poll(cx)
                     }
                     Poll::Ready(inner) => {
+                        // There is still buffered plaintext to drain, so the
+                        // next poll must drive CloseActive. Without this wake a
+                        // caller with no further I/O can park here forever.
                         self.state = State::CloseActive { inner };
+                        cx.waker().wake_by_ref();
                         Poll::Pending
                     }
                     Poll::Pending => {
