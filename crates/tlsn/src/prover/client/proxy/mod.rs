@@ -302,7 +302,12 @@ impl TlsClient for ProxyTlsClient {
 
                 if io_state.peer_has_closed() && !self.close.peer_closed() {
                     self.close.mark_peer_closed();
-                    debug!("server closed its TLS write side");
+                    // TLS 1.2 requires an immediate close_notify response and
+                    // that pending writes be discarded. Writes already handed
+                    // to rustls may still be in flight; from here on we stop
+                    // accepting new application plaintext.
+                    self.close.mark_close_requested();
+                    debug!("server closed its TLS write side; responding with close_notify");
                 }
 
                 // `wants_read` is false once the state leaves `Connected`, so
