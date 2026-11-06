@@ -679,6 +679,10 @@ where
         if !state.close.eof_delivered()
             && let Poll::Ready(mut simplex) = state.client_io.as_mut().poll_lock_write(cx)
         {
+            // Defer the fatal-app-close decision until `poll_mut`'s mutable
+            // borrow has ended, so the number of bytes still buffered in the
+            // app-side pipe can be inspected.
+            let mut app_gone = None;
             match simplex.poll_mut(cx) {
                 Poll::Ready(Ok(buf)) if state.tls_client.wants_read() => {
                     let read = state.tls_client.read(buf)?;
@@ -687,25 +691,26 @@ where
                         progressed = true;
                     }
                 }
-                // The application side is gone. If it still had plaintext to
-                // read, waiting for a reader that can never arrive would park
-                // the prover forever.
                 Poll::Ready(Err(err))
                     if matches!(
                         err.kind(),
                         std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
-                    ) && state.tls_client.has_pending_plaintext() =>
+                    ) =>
                 {
+                    app_gone = Some(err);
+                }
+                Poll::Ready(Err(err)) => return Err(Error::from(err)),
+                _ => {}
+            }
+
+            if let Some(err) = app_gone {
+                // The application side is gone. Anything still buffered by
+                // the TLS client, or already handed to the app-side pipe but
+                // not read, can never be delivered.
+                if state.tls_client.has_pending_plaintext() || simplex.remaining() > 0 {
                     return Err(Error::from(err));
                 }
                 // A closed application with nothing left to deliver is benign.
-                Poll::Ready(Err(err))
-                    if matches!(
-                        err.kind(),
-                        std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
-                    ) => {}
-                Poll::Ready(Err(err)) => return Err(Error::from(err)),
-                _ => {}
             }
         }
 
