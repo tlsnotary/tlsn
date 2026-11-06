@@ -301,7 +301,6 @@ impl MpcTlsLeader {
 
         ctx.io_mut()
             .send(Message::ServerHello(ServerHello {
-                time,
                 random: hs.server_random.0,
                 key: hs.server_key.clone(),
             }))
