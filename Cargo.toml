@@ -62,14 +62,11 @@ tlsn-server-fixture = { path = "crates/server-fixture/server" }
 tlsn-server-fixture-certs = { path = "crates/server-fixture/certs" }
 tlsn-tls-core = { path = "crates/tls-core" }
 tlsn-harness-core = { path = "crates/harness/core" }
-tlsn-harness-executor = { path = "crates/harness/executor" }
-tlsn-harness-runner = { path = "crates/harness/runner" }
 tlsn-sdk-core = { path = "crates/sdk-core" }
 tlsn-wasm = { path = "crates/wasm" }
 tlsn = { path = "crates/tlsn" }
 
 mpz-circuits = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
-mpz-circuits-data = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
 mpz-memory-core = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
 mpz-common = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
 mpz-core = { git = "https://github.com/tlsnotary/mpz2", rev = "8f897838f4e24aff9da8e8b012e8ba35ae770141" }
@@ -94,7 +91,6 @@ aead = { version = "0.4" }
 aes = { version = "0.8" }
 aes-gcm = { version = "0.9" }
 anyhow = { version = "1.0" }
-async_io_stream = { version = "0.3" }
 async-trait = { version = "0.1" }
 axum = { version = "0.8" }
 bcs = { version = "0.1" }
@@ -102,7 +98,6 @@ bincode = { version = "1.3" }
 blake3 = { version = "1.5" }
 bon = { version = "3.6" }
 bytes = { version = "1.4" }
-cfg-if = { version = "1" }
 chromiumoxide = { version = "0.9.1" }
 chrono = { version = "0.4" }
 cipher = { version = "0.4" }
@@ -110,10 +105,7 @@ clap = { version = "4.5" }
 criterion = { version = "0.5" }
 ctr = { version = "0.9" }
 derive_builder = { version = "0.12" }
-digest = { version = "0.10" }
-elliptic-curve = { version = "0.13" }
 enum-try-as-inner = { version = "0.1" }
-env_logger = { version = "0.10" }
 futures = { version = "0.3" }
 futures-rustls = { version = "0.25" }
 generic-array = { version = "0.14" }
@@ -128,12 +120,10 @@ inventory = { version = "0.3" }
 itybity = { version = "0.2" }
 js-sys = { version = "0.3" }
 k256 = { version = "0.13" }
-log = { version = "0.4" }
 once_cell = { version = "1.19" }
 opaque-debug = { version = "0.3" }
 p256 = { version = "0.13" }
 pin-project-lite = { version = "0.2" }
-pollster = { version = "0.4" }
 rand = { version = "0.10" }
 rand_chacha = { version = "0.10" }
 rand_core = { version = "0.10" }
@@ -154,7 +144,6 @@ semver = { version = "1.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 sha2 = { version = "0.10" }
-signature = { version = "2.2" }
 thiserror = { version = "1.0" }
 tiny-keccak = { version = "2.0" }
 tokio = { version = "1.38" }
@@ -162,7 +151,6 @@ tokio-util = { version = "0.7" }
 toml = { version = "0.8" }
 tower = { version = "0.5" }
 tower-http = { version = "0.5" }
-tower-service = { version = "0.3" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }
 wasm-bindgen = { version = "0.2" }
