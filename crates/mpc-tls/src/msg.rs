@@ -34,8 +34,6 @@ pub(crate) enum Message {
 /// Server parameters of the TLS handshake.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct ServerHello {
-    /// The time of the handshake as unix timestamp in seconds.
-    pub(crate) time: u64,
     /// The server random.
     pub(crate) random: [u8; 32],
     /// The server ephemeral public key.

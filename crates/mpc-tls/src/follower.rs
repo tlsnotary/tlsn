@@ -29,9 +29,6 @@ use tlsn_core::{
 
 use tracing::{debug, instrument};
 
-// Maximum handshake time difference in seconds.
-const MAX_TIME_DIFF: u64 = 5;
-
 /// MPC-TLS follower.
 #[derive(Debug)]
 pub struct MpcTlsFollower {
@@ -214,6 +211,10 @@ impl MpcTlsFollower {
 
         let mut client_random = None;
         let mut server_hello: Option<ServerHello> = None;
+        // Time at which the server hello was received. This is the verifier's
+        // own clock and is used as the connection start time, rather than any
+        // time supplied by the prover.
+        let mut time = None;
         let mut expected_cf_vd = None;
         let mut expected_sf_vd = None;
         loop {
@@ -232,14 +233,12 @@ impl MpcTlsFollower {
                         return Err(MpcTlsError::hs("server hello already set"));
                     }
 
-                    let this_time = web_time::UNIX_EPOCH
-                        .elapsed()
-                        .expect("system time is available")
-                        .as_secs();
-
-                    if hello.time.abs_diff(this_time) > MAX_TIME_DIFF {
-                        return Err(MpcTlsError::hs("handshake time difference exceeds limit"));
-                    }
+                    time = Some(
+                        web_time::UNIX_EPOCH
+                            .elapsed()
+                            .expect("system time is available")
+                            .as_secs(),
+                    );
 
                     prf.set_server_random(hello.random)?;
 
@@ -344,6 +343,7 @@ impl MpcTlsFollower {
 
         let server_hello = server_hello.ok_or(MpcTlsError::hs("server hello not set"))?;
         let client_random = client_random.ok_or(MpcTlsError::hs("client random not set"))?;
+        let time = time.ok_or(MpcTlsError::hs("server hello time not set"))?;
         let expected_cf_vd =
             expected_cf_vd.ok_or(MpcTlsError::hs("client finished VD not computed"))?;
         let expected_sf_vd =
@@ -359,7 +359,7 @@ impl MpcTlsFollower {
         });
 
         let transcript = TlsTranscript::builder()
-            .time(server_hello.time)
+            .time(time)
             .version(TlsVersion::V1_2)
             .certificate_binding(binding)
             .records_sent(sent_records)
