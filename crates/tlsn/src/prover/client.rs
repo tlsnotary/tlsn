@@ -74,6 +74,14 @@ pub(crate) trait TlsClient {
         false
     }
 
+    /// Returns whether any decrypted application data is buffered.
+    ///
+    /// Unlike [`TlsClient::wants_read`], this must reflect the actual
+    /// plaintext buffer, not merely that the client is in a readable state.
+    fn has_pending_plaintext(&self) -> bool {
+        self.wants_read()
+    }
+
     /// Returns true when the write half of the transport can be closed.
     fn wants_write_shutdown(&self) -> bool {
         false

@@ -161,6 +161,10 @@ enum Loss {
 enum Step {
     /// One application round-trip ("echo" -> "hello").
     Echo,
+    /// Send "echo" and read exactly this many bytes of the 5-byte reply.
+    ReadReply(usize),
+    /// Send "echo" and read this many bytes while the server streams records.
+    StreamReply(usize),
     /// The client sends its application request without reading a reply.
     Request,
     /// Wait until the server has read the application request.
@@ -580,12 +584,33 @@ const CASES: &[Case] = &[
         Some(Expect::Complete),
         None,
     ),
-    // Proxy counterpart: the client drops without closing. The prover's write
-    // to the client fails (broken pipe), so it reports an error rather than
-    // waiting on the silent server like MPC does.
+    // Proxy counterpart: the client drops without closing after consuming the
+    // complete reply. Nothing is left to deliver, so the app-side broken pipe
+    // is benign and the prover finalizes.
     proxy(
-        "proxy client gone after handshake, server silent",
+        "proxy client gone after handshake",
         &[Step::Echo, Step::ClientGone],
+        Some(Expect::Ok),
+        None,
+    ),
+    // The app consumed the complete response, the server closed, and then the
+    // app dropped. No plaintext remains, so this must not be fatal.
+    proxy(
+        "proxy client gone after complete response",
+        &[
+            Step::ReadReply(5),
+            Step::ServerOutOfBand("send_close_notify_and_close_socket"),
+            Step::ClientGone,
+        ],
+        Some(Expect::Ok),
+        Some(Expect::Ok),
+    ),
+    // The app drops after reading only part of the response. The remaining
+    // plaintext cannot be delivered, so the prover must fail rather than
+    // silently discard it.
+    proxy(
+        "proxy client gone with pending plaintext",
+        &[Step::StreamReply(1), Step::ClientGone],
         Some(Expect::Err),
         None,
     ),
@@ -894,6 +919,45 @@ fn pad(command: &[u8]) -> Vec<u8> {
     let mut record = command.to_vec();
     record.resize(APP_RECORD_LENGTH, 0);
     record
+}
+
+const STREAM_RECORDS: usize = 16;
+
+fn tls_server_config() -> Arc<ServerConfig> {
+    let key = PrivateKeyDer::Pkcs8(SERVER_KEY_DER.into());
+    let cert = RustlsCert::from(SERVER_CERT_DER);
+    Arc::new(
+        ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert], key)
+            .unwrap(),
+    )
+}
+
+/// Reads one request, then streams enough records to leave the prover with
+/// undelivered plaintext once the app stops reading.
+async fn streaming_server(socket: Compat<CountingIo<DuplexStream>>, mut jitter: Jitter) {
+    let acceptor = TlsAcceptor::from(tls_server_config());
+    let mut conn = acceptor.accept(socket).await.unwrap();
+
+    jitter.delay(Point::BeforeRead).await;
+    let mut buf = [0u8; APP_RECORD_LENGTH];
+    conn.read_exact(&mut buf).await.unwrap();
+
+    let record = [b'x'; APP_RECORD_LENGTH];
+    for _ in 0..STREAM_RECORDS {
+        jitter.delay(Point::BeforeData).await;
+        // A failing session closes the transport mid-stream. That is the
+        // condition under test, not a server-side test failure.
+        if conn.write_all(&record).await.is_err() {
+            return;
+        }
+    }
+    if conn.flush().await.is_err() {
+        return;
+    }
+
+    std::future::pending::<()>().await;
 }
 
 fn real_server<T>(socket: T) -> JoinHandle<()>
@@ -1291,7 +1355,17 @@ impl Scenario {
                     Some(rx),
                 )
             }
-            [Step::Echo, ..] => (Some(real_server(server_peer)), None, None),
+            [Step::StreamReply(_), ..] => (
+                Some(tokio::spawn(streaming_server(
+                    server_peer.compat(),
+                    plan.jitter(Party::Server),
+                ))),
+                None,
+                None,
+            ),
+            [Step::Echo, ..] | [Step::ReadReply(_), ..] => {
+                (Some(real_server(server_peer)), None, None)
+            }
             // Proxy before-data: a server that serves normally and closes
             // when the prover goes away.
             [
@@ -1362,6 +1436,34 @@ impl Scenario {
                 let conn = self.conn.as_mut().expect("Echo needs a live client conn");
                 echo_once_with_jitter(conn, client_jitter).await;
             }
+            Step::ReadReply(n) => {
+                let conn = self
+                    .conn
+                    .as_mut()
+                    .expect("ReadReply needs a live client conn");
+                assert!(n <= 5, "the fixture reply is 5 bytes");
+                client_jitter.delay(Point::BeforeWrite).await;
+                conn.write_all(&pad(b"echo")).await.unwrap();
+                if n > 0 {
+                    client_jitter.delay(Point::BeforeRead).await;
+                    let mut reply = vec![0u8; n];
+                    conn.read_exact(&mut reply).await.unwrap();
+                    assert_eq!(&reply, &b"hello"[..n]);
+                }
+            }
+            Step::StreamReply(n) => {
+                let conn = self
+                    .conn
+                    .as_mut()
+                    .expect("StreamReply needs a live client conn");
+                client_jitter.delay(Point::BeforeWrite).await;
+                conn.write_all(&pad(b"echo")).await.unwrap();
+                if n > 0 {
+                    client_jitter.delay(Point::BeforeRead).await;
+                    let mut reply = vec![0u8; n];
+                    conn.read_exact(&mut reply).await.unwrap();
+                }
+            }
             Step::Request => {
                 let conn = self
                     .conn
@@ -1412,7 +1514,10 @@ impl Scenario {
                 conn.close().await.unwrap();
             }
             Step::Lose { actor, loss } => self.lose(actor, loss),
-            Step::ClientGone => self.conn = None,
+            Step::ClientGone => {
+                client_jitter.delay(Point::BeforeClientDrop).await;
+                self.conn = None;
+            }
             Step::ServerGone => {}
             Step::ServerOutOfBand(cmd) => {
                 let conn = self.conn.as_mut().expect("needs a live conn");

@@ -128,6 +128,7 @@ pub(crate) enum Point {
     BeforeFin,
     BeforeData,
     BeforeAbort,
+    BeforeClientDrop,
 }
 
 impl Point {
@@ -140,6 +141,7 @@ impl Point {
             Point::BeforeFin => "before_fin",
             Point::BeforeData => "before_data",
             Point::BeforeAbort => "before_abort",
+            Point::BeforeClientDrop => "before_client_drop",
         }
     }
 }

@@ -49,6 +49,8 @@ pub(crate) struct ProxyTlsClient {
     /// a transport fact rather than close state: it decides whether sending
     /// our close_notify can still succeed.
     transport_closed: bool,
+    /// Decrypted application bytes still buffered by rustls.
+    plaintext_bytes_to_read: usize,
     /// Per-direction close state. Drives the finalize decision.
     close: CloseState,
     /// Protocol state machine.
@@ -127,6 +129,7 @@ impl ProxyTlsClient {
             time: None,
             traffic: TlsBytes::default(),
             transport_closed: false,
+            plaintext_bytes_to_read: 0,
             close: CloseState::new(),
             state: State::Init { prover },
             decrypt: Arc::new(decrypt),
@@ -185,6 +188,7 @@ impl TlsClient for ProxyTlsClient {
             Err(e) => return Err(TlsnError::internal().with_source(e)),
         }?;
         self.traffic.app_recv.extend_from_slice(&buf[..n]);
+        self.plaintext_bytes_to_read = self.plaintext_bytes_to_read.saturating_sub(n);
         if n == 0 && self.close.peer_closed() {
             self.close.mark_drained();
         }
@@ -217,6 +221,10 @@ impl TlsClient for ProxyTlsClient {
 
     fn plaintext_pending(&self) -> bool {
         self.close.peer_closed() && !self.close.inbound_drained()
+    }
+
+    fn has_pending_plaintext(&self) -> bool {
+        self.plaintext_bytes_to_read > 0 || self.plaintext_pending()
     }
 
     fn server_close(&mut self) {
@@ -255,11 +263,12 @@ impl TlsClient for ProxyTlsClient {
             }
             State::Handshaking { prover } => {
                 debug!("inner client is handshaking");
-                self.conn.process_new_packets().map_err(|err| {
+                let io_state = self.conn.process_new_packets().map_err(|err| {
                     TlsnError::internal()
                         .with_msg("rustls error")
                         .with_source(err)
                 })?;
+                self.plaintext_bytes_to_read = io_state.plaintext_bytes_to_read();
                 if !self.conn.is_handshaking() {
                     let now = web_time::UNIX_EPOCH
                         .elapsed()
@@ -299,6 +308,7 @@ impl TlsClient for ProxyTlsClient {
                         .with_msg("rustls error")
                         .with_source(err)
                 })?;
+                self.plaintext_bytes_to_read = io_state.plaintext_bytes_to_read();
 
                 if io_state.peer_has_closed() && !self.close.peer_closed() {
                     self.close.mark_peer_closed();

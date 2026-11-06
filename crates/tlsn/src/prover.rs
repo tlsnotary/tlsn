@@ -682,7 +682,7 @@ where
                     if matches!(
                         err.kind(),
                         std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
-                    ) && state.tls_client.wants_read() =>
+                    ) && state.tls_client.has_pending_plaintext() =>
                 {
                     return Err(Error::from(err));
                 }
