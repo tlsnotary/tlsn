@@ -64,7 +64,6 @@ impl ProverMpcDeps {
         let rcot_recv = kos::Receiver::new(kos::ReceiverConfig::default(), base_ot_send);
         let rcot_recv = ferret::Receiver::new(
             ferret::FerretConfig::builder()
-                .lpn_type(ferret::LpnType::Regular)
                 .build()
                 .expect("ferret config is valid"),
             Block::random(&mut rng),
@@ -82,7 +81,17 @@ impl ProverMpcDeps {
 
         let zk = cfg_select! {
             tlsn_insecure => mpz_ideal_vm::IdealVm::new(),
-            _ => ProverZk::new(Default::default(), rcot_recv.clone()),
+            _ => ProverZk::new(
+                // Full-transcript hashes queue many circuits. Their gate OTs
+                // must follow execution batches instead of retaining the whole
+                // proof in memory. MPC-TLS drops its ZK-OT handle before this
+                // VM executes, so there is no other active shared consumer.
+                mpz_zk::ProverConfig::builder()
+                    .batch_gate_ots(true)
+                    .build()
+                    .expect("ZK config is valid"),
+                rcot_recv.clone(),
+            ),
         };
 
         let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Leader, mpc, zk)));
@@ -148,13 +157,15 @@ impl ProverProxyDeps {
                 let rcot_recv = kos::Receiver::new(kos::ReceiverConfig::default(), base_ot_send);
                 let rcot_recv = ferret::Receiver::new(
                     ferret::FerretConfig::builder()
-                        .lpn_type(ferret::LpnType::Regular)
                         .build()
                         .expect("ferret config is valid"),
                     Block::random(&mut rng),
                     rcot_recv,
                 );
                 let rcot_recv = SharedRCOTReceiver::new(rcot_recv);
+                // Proxy finalizes the prover before closing the TLS stream;
+                // its verifier waits for that close before finalizing. Keep OT
+                // preprocessing eager here so proving needs no interactive refill.
                 ProverZk::new(Default::default(), rcot_recv)
             }}
         };

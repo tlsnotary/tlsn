@@ -64,7 +64,6 @@ impl VerifierMpcDeps {
         );
         let rcot_send = ferret::Sender::new(
             ferret::FerretConfig::builder()
-                .lpn_type(ferret::LpnType::Regular)
                 .build()
                 .expect("ferret config is valid"),
             Block::random(&mut rng),
@@ -82,7 +81,18 @@ impl VerifierMpcDeps {
 
         let zk = cfg_select! {
             tlsn_insecure => mpz_ideal_vm::IdealVm::new(),
-            _ => VerifierZk::new(Default::default(), delta, rcot_send.clone()),
+            _ => VerifierZk::new(
+                // Full-transcript hashes queue many circuits. Their gate OTs
+                // must follow execution batches instead of retaining the whole
+                // proof in memory. MPC-TLS drops its ZK-OT handle before this
+                // VM executes, so there is no other active shared consumer.
+                mpz_zk::VerifierConfig::builder()
+                    .batch_gate_ots(true)
+                    .build()
+                    .expect("ZK config is valid"),
+                delta,
+                rcot_send.clone(),
+            ),
         };
 
         let vm = Arc::new(Mutex::new(Deap::new(tlsn_deap::Role::Follower, mpc, zk)));
@@ -153,13 +163,15 @@ impl VerifierProxyDeps {
                 );
                 let rcot_send = ferret::Sender::new(
                     ferret::FerretConfig::builder()
-                        .lpn_type(ferret::LpnType::Regular)
                         .build()
                         .expect("ferret config is valid"),
                     Block::random(&mut rng),
                     rcot_send,
                 );
                 let rcot_send = SharedRCOTSender::new(rcot_send);
+                // Proxy finalizes the prover before closing the TLS stream;
+                // its verifier waits for that close before finalizing. Keep OT
+                // preprocessing eager here so proving needs no interactive refill.
                 VerifierZk::new(Default::default(), delta, rcot_send)
             }}
         };
