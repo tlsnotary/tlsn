@@ -13,6 +13,7 @@ use crate::{
     proxy::InspectReader,
     session::SessionClosure,
     tag::verify_tags,
+    transport::is_transport_gone,
 };
 use futures::{
     AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, FutureExt,
@@ -728,21 +729,8 @@ impl Verifier<state::Verify> {
     }
 }
 
-fn is_transport_gone(err: &std::io::Error) -> bool {
-    matches!(
-        err.kind(),
-        std::io::ErrorKind::BrokenPipe
-            | std::io::ErrorKind::ConnectionReset
-            | std::io::ErrorKind::ConnectionAborted
-            | std::io::ErrorKind::NotConnected
-    )
-}
-
 fn log_proxy_close_error(peer: &str, err: &std::io::Error) {
-    if matches!(
-        err.kind(),
-        std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
-    ) {
+    if is_transport_gone(err) {
         debug!(
             "failed to close {peer} transport write half: {err}; \
              the peer may already be gone and the transport FIN may not have been delivered"

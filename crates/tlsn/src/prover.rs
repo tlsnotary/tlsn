@@ -28,6 +28,7 @@ use crate::{
     },
     session::SessionClosure,
     tag::verify_tags,
+    transport::is_transport_gone,
 };
 
 use futures::{AsyncRead, AsyncWrite, ready};
@@ -346,10 +347,18 @@ where
             }
 
             if !*state.pipe_drained {
-                if !poll_write_to_server(cx, &state.socket_end, state.server_socket.as_mut())? {
+                if !poll_write_to_server(
+                    cx,
+                    &state.socket_end,
+                    state.server_socket.as_mut(),
+                    &mut *state.server_transport_closed,
+                )? {
                     return Poll::Pending;
                 }
                 *state.pipe_drained = true;
+                if *state.server_transport_closed && !state.close.peer_closed() {
+                    state.close.mark_peer_closed();
+                }
             }
 
             ready!(state.client_io.poll_close(cx))?;
@@ -565,12 +574,7 @@ where
                     cx.waker().wake_by_ref();
                 }
             }
-            Poll::Ready(Err(err))
-                if matches!(
-                    err.kind(),
-                    std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
-                ) =>
-            {
+            Poll::Ready(Err(err)) if is_transport_gone(&err) => {
                 // In MPC mode `server_socket` is the server connection, so an
                 // abrupt close here is a server RST. In proxy mode it is the
                 // mux stream to the verifier, so the same error means a
@@ -657,9 +661,17 @@ where
         // later poll that cannot take the lock must not reset it. Stop once it
         // is set, so nothing is written into a socket that is being closed.
         if !*state.pipe_drained
-            && poll_write_to_server(cx, &state.socket_end, state.server_socket.as_mut())?
+            && poll_write_to_server(
+                cx,
+                &state.socket_end,
+                state.server_socket.as_mut(),
+                &mut *state.server_transport_closed,
+            )?
         {
             *state.pipe_drained = true;
+            if *state.server_transport_closed && !state.close.peer_closed() {
+                state.close.mark_peer_closed();
+            }
         }
 
         // tls_client -> tls_conn
@@ -711,6 +723,7 @@ fn poll_write_to_server<S>(
     cx: &mut std::task::Context<'_>,
     buf: &futures_plex::DuplexStream,
     server_socket: S,
+    server_transport_closed: &mut bool,
 ) -> Result<bool, Error>
 where
     S: AsyncWrite + Unpin,
@@ -728,12 +741,8 @@ where
         // The socket is gone, so nothing further can be forwarded. Treat this
         // as drained so the shutdown path still runs, as it did before there
         // was any drain check.
-        Poll::Ready(Err(err))
-            if matches!(
-                err.kind(),
-                std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
-            ) =>
-        {
+        Poll::Ready(Err(err)) if is_transport_gone(&err) => {
+            *server_transport_closed = true;
             true
         }
         Poll::Ready(Err(err)) => return Err(Error::from(err)),

@@ -81,6 +81,7 @@ mod proxy;
 mod session;
 pub(crate) mod tag;
 pub(crate) mod transcript_internal;
+mod transport;
 pub mod verifier;
 
 pub use error::Error;
