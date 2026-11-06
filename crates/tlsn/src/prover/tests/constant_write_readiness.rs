@@ -1,3 +1,9 @@
+//! Readiness tests for a TLS client whose `wants_write` is constantly true,
+//! as a proxy client reports it.
+//!
+//! These drive the prover's outer IO loop with a mock client, so they do not
+//! exercise `ProxyTlsClient` itself.
+
 use std::{
     sync::{
         Arc,
@@ -15,13 +21,13 @@ use crate::{
     prover::client::{DecryptState, TlsClient},
 };
 
-struct MockProxyTlsClient {
+struct ConstantWriteMockTlsClient {
     decrypt: Arc<DecryptState>,
     wants_read_tls: Arc<AtomicBool>,
     unblock_read_on_poll: Arc<AtomicBool>,
 }
 
-impl TlsClient for MockProxyTlsClient {
+impl TlsClient for ConstantWriteMockTlsClient {
     type Error = Error;
 
     fn wants_read_tls(&self) -> bool {
@@ -44,8 +50,8 @@ impl TlsClient for MockProxyTlsClient {
         false
     }
 
-    // Proxy clients report write readiness from connection state, not buffer
-    // capacity, so this stays true while connected.
+    // Write readiness is constant, as a proxy client reports it from
+    // connection state rather than buffer capacity.
     fn wants_write(&self) -> bool {
         true
     }
@@ -77,8 +83,8 @@ impl TlsClient for MockProxyTlsClient {
     }
 }
 
-fn client(unblock_read_on_poll: bool) -> MockProxyTlsClient {
-    MockProxyTlsClient {
+fn client(unblock_read_on_poll: bool) -> ConstantWriteMockTlsClient {
+    ConstantWriteMockTlsClient {
         decrypt: Arc::new(DecryptState::new()),
         wants_read_tls: Arc::new(AtomicBool::new(false)),
         unblock_read_on_poll: Arc::new(AtomicBool::new(unblock_read_on_poll)),
@@ -88,7 +94,7 @@ fn client(unblock_read_on_poll: bool) -> MockProxyTlsClient {
 /// Constant-true `wants_write` (proxy semantics) must not produce a
 /// false progress wake.
 #[test]
-fn proxy_constant_write_readiness_does_not_wake() {
+fn constant_write_readiness_does_not_wake() {
     let mut prover = TestProver::new(Box::new(client(false)));
 
     for _ in 0..3 {
@@ -101,10 +107,10 @@ fn proxy_constant_write_readiness_does_not_wake() {
     }
 }
 
-/// A proxy read-readiness transition must still wake once, even though
+/// A read-readiness transition must still wake once, even though
 /// `wants_write` is constantly true.
 #[test]
-fn proxy_read_readiness_transition_wakes_once() {
+fn read_readiness_transition_wakes_once() {
     let mut prover = TestProver::new(Box::new(client(true)));
     prover.write_server_tls(&[0u8; 32]);
 
@@ -118,6 +124,6 @@ fn proxy_read_readiness_transition_wakes_once() {
     assert_eq!(
         prover.take_wakes(),
         1,
-        "proxy read readiness transition must wake exactly once"
+        "read readiness transition must wake exactly once"
     );
 }

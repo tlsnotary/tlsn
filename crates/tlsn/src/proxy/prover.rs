@@ -1,12 +1,14 @@
 use crate::{
     Error as TlsnError, TlsOutput,
     deps::ProverZk,
+    msg::ProxyFinished,
     proxy::{MsVisibility, References, TlsBytes, VerifyDataCheck, alloc_proxy_refs},
 };
 use hmac_sha256::{MSMode, NetworkMode, Prf, PrfConfig};
 use mpz_common::Context;
 use mpz_memory_core::MemoryExt;
 use mpz_vm_core::Execute;
+use serio::SinkExt;
 use tlsn_core::transcript::TlsTranscript;
 
 #[derive(Debug)]
@@ -51,6 +53,23 @@ impl ProxyProver {
                 .with_msg("preprocessing proxy-tls failed")
                 .with_source(e)
         })
+    }
+
+    /// Tells the verifier that the prover is done with the proxy connection.
+    pub(crate) async fn send_finished(
+        &mut self,
+        tls_sent: u64,
+        tls_recv: u64,
+    ) -> Result<(), TlsnError> {
+        self.ctx
+            .io_mut()
+            .send(ProxyFinished { tls_sent, tls_recv })
+            .await
+            .map_err(|e| {
+                TlsnError::io()
+                    .with_msg("failed to send proxy finished message")
+                    .with_source(e)
+            })
     }
 
     pub(crate) async fn finalize(

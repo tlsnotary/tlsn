@@ -50,6 +50,46 @@ pub(crate) trait TlsClient {
     /// Server closes the connection.
     fn server_close(&mut self);
 
+    /// Returns whether the peer has sent a TLS `close_notify`.
+    fn received_close_notify(&self) -> bool {
+        false
+    }
+
+    /// Returns whether the TLS handshake is still in progress.
+    fn is_handshaking(&self) -> bool {
+        false
+    }
+
+    /// Returns whether the peer's TLS write side is finished.
+    ///
+    /// For proxy mode this becomes true when rustls has processed the server's
+    /// `close_notify`, or when the transport has reached EOF and everything
+    /// buffered before it has been fed to rustls.
+    fn incoming_finished(&self) -> bool {
+        false
+    }
+
+    /// Returns whether decrypted application data is still waiting to be read.
+    fn plaintext_pending(&self) -> bool {
+        false
+    }
+
+    /// Returns whether any decrypted application data is buffered.
+    ///
+    /// Unlike [`TlsClient::wants_read`], this must reflect the actual
+    /// plaintext buffer, not merely that the client is in a readable state.
+    fn has_pending_plaintext(&self) -> bool {
+        self.wants_read()
+    }
+
+    /// Returns true when the write half of the transport can be closed.
+    fn wants_write_shutdown(&self) -> bool {
+        false
+    }
+
+    /// Notifies the client that the write half of the transport has been
+    /// closed.
+    fn write_shutdown_complete(&mut self) {}
     /// Returns the decryption state.
     fn decrypt(&self) -> Arc<DecryptState>;
 

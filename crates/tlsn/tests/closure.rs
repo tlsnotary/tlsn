@@ -1,23 +1,34 @@
-//! Tests for TLS connection-closure semantics in MPC mode.
+//! Session-lifecycle deep-dive: dropping an unsplit session must cancel its
+//! participants.
 //!
-//! These run against the raw TLS server fixture which reacts to magic
-//! payloads, allowing us to exercise clean closure (close_notify), abrupt
-//! socket closure and fatal alerts.
+//! Server termination and fault reactions are covered by `server_behaviour.rs`;
+//! actor disappearance phases are covered by `failure_table.rs`. This file
+//! keeps only the lifecycle case that neither matrix expresses.
+//!
+//! This needs `tlsn_insecure` so the MPC setup is cheap. Run it with:
+//!
+//! ```text
+//! RUSTFLAGS="--cfg tlsn_insecure" \
+//!     cargo test -p tlsn --test closure --profile tests-integration -- --include-ignored
+//! ```
 
-use futures::{AsyncReadExt, AsyncWriteExt};
+#![allow(unexpected_cfgs)]
+#![cfg(tlsn_insecure)]
+
+use std::time::Duration;
+
+use futures::AsyncWriteExt;
 use tls_server_fixture::{APP_RECORD_LENGTH, CA_CERT_DER, SERVER_DOMAIN, bind_test_server};
 use tlsn::{
-    Session, SessionHandle,
+    Session,
     config::{
         prover::ProverConfig, tls::TlsClientConfig, tls_commit::mpc::MpcTlsConfig,
         verifier::VerifierConfig,
     },
     connection::ServerName,
-    prover::Prover,
     verifier::{Verifier, VerifierCommitStart},
     webpki::{CertificateDer, RootCertStore},
 };
-use tokio::io::DuplexStream;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 type TestError = Box<dyn std::error::Error + Send + Sync>;
@@ -27,206 +38,46 @@ const MAX_SENT_RECORDS: usize = 4;
 const MAX_RECV_DATA: usize = 1 << 14;
 const MAX_RECV_RECORDS: usize = 6;
 
-/// Exercises the TLS connection-closure scenarios in MPC mode.
+/// Dropping a session that was never split must cancel its participants.
 ///
-/// The scenarios run sequentially inside this single test, and thus on a
-/// single tokio runtime. They are deliberately *not* split into separate
-/// `#[test]` functions: the default harness would then run them in parallel,
-/// and several concurrent MPC sessions in one process deadlock contending for
-/// the MPC backend's process-global resources (most notably the shared
-/// `rayon` thread pool). Running them one at a time avoids that.
+/// The prover is parked on a server that keeps the connection open without
+/// closing, so no mux I/O of its own can wake it: only the session closure
+/// can. If the task driving the unsplit session is aborted, the prover must
+/// fail instead of hanging.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore]
-async fn test_mpc_connection_closure() {
-    server_close_notify().await;
-    server_closes_uncleanly().await;
-    server_closes_uncleanly_no_data().await;
-    server_alert().await;
-}
+async fn unsplit_session_drop_cancels_prover() {
+    let (prover_socket, verifier_socket) = tokio::io::duplex(2 << 23);
+    let mut session_p = Session::new(prover_socket.compat());
+    let mut session_v = Session::new(verifier_socket.compat());
 
-/// The server sends close_notify and closes the socket. The connection
-/// closes cleanly and MPC-TLS finalization succeeds on both sides.
-async fn server_close_notify() {
-    let setup = Setup::new().await;
-    let server_task = tokio::spawn(bind_test_server(setup.server_socket.compat()));
-
-    let prover_fut = run_prover(
-        setup.prover,
-        setup.client_socket,
-        Scenario {
-            echo_first: true,
-            command: b"send_close_notify_and_close_socket",
-            close: true,
-        },
-    );
-    let verifier_fut = run_verifier_commit(setup.verifier);
-
-    let (prover_result, verifier_result) = tokio::join!(prover_fut, verifier_fut);
-
-    prover_result.expect("prover should finalize after clean closure");
-    verifier_result.expect("verifier should finalize after clean closure");
-    server_task.await.unwrap();
-}
-
-/// The server closes the socket abruptly without sending close_notify,
-/// after having sent application data. The transcripts end with application
-/// records, which the record-layer closure check accepts, so finalization
-/// still succeeds.
-async fn server_closes_uncleanly() {
-    let setup = Setup::new().await;
-    let server_task = tokio::spawn(bind_test_server(setup.server_socket.compat()));
-
-    let prover_fut = run_prover(
-        setup.prover,
-        setup.client_socket,
-        Scenario {
-            echo_first: true,
-            command: b"close_socket",
-            close: false,
-        },
-    );
-    let verifier_fut = run_verifier_commit(setup.verifier);
-
-    let (prover_result, verifier_result) = tokio::join!(prover_fut, verifier_fut);
-
-    prover_result.expect("prover should finalize after abrupt closure");
-    verifier_result.expect("verifier should finalize after abrupt closure");
-    server_task.await.unwrap();
-}
-
-/// The server closes the socket abruptly right after the handshake, without
-/// any application data. The received transcript then ends with a handshake
-/// record, which both the leader and the follower must reject.
-async fn server_closes_uncleanly_no_data() {
-    let setup = Setup::new().await;
-    let server_task = tokio::spawn(bind_test_server(setup.server_socket.compat()));
-
-    let prover_fut = run_prover(
-        setup.prover,
-        setup.client_socket,
-        Scenario {
-            echo_first: false,
-            command: b"close_socket",
-            close: false,
-        },
-    );
-    let verifier_task = tokio::spawn(run_verifier_commit(setup.verifier));
-
-    prover_fut
-        .await
-        .expect_err("prover must not finalize when no application data was received");
-
-    let verifier_result = tokio::time::timeout(std::time::Duration::from_secs(60), verifier_task)
-        .await
-        .expect("verifier should not hang")
+    let prover = session_p
+        .new_prover(ProverConfig::builder().build().unwrap())
         .unwrap();
-    verifier_result.expect_err("verifier must not finalize when no application data was received");
-
-    server_task.abort();
-}
-
-/// The server sends a fatal alert. The transcript ends with an alert that
-/// is not close_notify, which neither the leader nor the follower must
-/// accept.
-async fn server_alert() {
-    let setup = Setup::new().await;
-    let server_task = tokio::spawn(bind_test_server(setup.server_socket.compat()));
-
-    let prover_fut = run_prover(
-        setup.prover,
-        setup.client_socket,
-        Scenario {
-            echo_first: false,
-            command: b"send_alert",
-            close: false,
-        },
-    );
-    let verifier_task = tokio::spawn(run_verifier_commit(setup.verifier));
-
-    prover_fut
-        .await
-        .expect_err("prover must not finalize after a fatal alert");
-
-    // The follower aborts once the leader is gone; it must not finalize
-    // successfully.
-    let verifier_result = tokio::time::timeout(std::time::Duration::from_secs(60), verifier_task)
-        .await
-        .expect("verifier should not hang")
+    let verifier = session_v
+        .new_verifier(
+            VerifierConfig::builder()
+                .root_store(root_store())
+                .build()
+                .unwrap(),
+        )
         .unwrap();
-    verifier_result.expect_err("verifier must not finalize after a fatal alert");
 
-    server_task.abort();
-}
+    // The prover's session is deliberately never split: drive it as a future
+    // so that aborting the task drops the session.
+    let prover_session = tokio::spawn(async move {
+        let _ = session_p.await;
+    });
 
-struct Setup {
-    prover: Prover,
-    verifier: Verifier,
-    client_socket: DuplexStream,
-    server_socket: DuplexStream,
-    _handles: (SessionHandle, SessionHandle),
-}
+    // The verifier uses the usual split path and stays alive, so the prover's
+    // failure is attributable to its own session being dropped.
+    let (verifier_driver, _verifier_handle) = session_v.split();
+    tokio::spawn(verifier_driver);
+    let verifier_task = tokio::spawn(run_verifier_commit(verifier));
 
-impl Setup {
-    async fn new() -> Self {
-        let (prover_socket, verifier_socket) = tokio::io::duplex(2 << 23);
-        let mut session_p = Session::new(prover_socket.compat());
-        let mut session_v = Session::new(verifier_socket.compat());
+    let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
+    let server_task = tokio::spawn(bind_test_server(server_socket.compat()));
 
-        let prover = session_p
-            .new_prover(ProverConfig::builder().build().unwrap())
-            .unwrap();
-        let verifier = session_v
-            .new_verifier(
-                VerifierConfig::builder()
-                    .root_store(root_store())
-                    .build()
-                    .unwrap(),
-            )
-            .unwrap();
-
-        let (session_p_driver, session_p_handle) = session_p.split();
-        let (session_v_driver, session_v_handle) = session_v.split();
-
-        tokio::spawn(session_p_driver);
-        tokio::spawn(session_v_driver);
-
-        let (client_socket, server_socket) = tokio::io::duplex(2 << 16);
-
-        Self {
-            prover,
-            verifier,
-            client_socket,
-            server_socket,
-            _handles: (session_p_handle, session_v_handle),
-        }
-    }
-}
-
-fn root_store() -> RootCertStore {
-    RootCertStore {
-        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
-    }
-}
-
-/// Interaction with the raw test server.
-struct Scenario {
-    /// Exchange one round of application data before sending the command,
-    /// so that the received transcript contains application records.
-    echo_first: bool,
-    /// The command for the raw test server, sent as the final record.
-    command: &'static [u8],
-    /// Whether the client sends close_notify after the command.
-    close: bool,
-}
-
-/// Runs the MPC prover against the raw test server: sends commands as
-/// zero-padded application records and then drives the connection to
-/// closure.
-async fn run_prover(
-    prover: Prover,
-    client_socket: DuplexStream,
-    scenario: Scenario,
-) -> Result<(), TestError> {
     let config = MpcTlsConfig::builder()
         .max_sent_data(MAX_SENT_DATA)
         .max_sent_records(MAX_SENT_RECORDS)
@@ -235,63 +86,63 @@ async fn run_prover(
         .build()
         .unwrap();
 
-    let prover = prover.commit(config).await?;
+    let prover = prover.commit(config).await.expect("prover should commit");
+    let (mut tls_connection, prover) = prover
+        .connect(
+            TlsClientConfig::builder()
+                .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
+                .root_store(root_store())
+                .build()
+                .unwrap(),
+            client_socket.compat(),
+        )
+        .expect("prover should connect");
+    let mut prover_task = tokio::spawn(prover.into_future());
 
-    let (mut tls_connection, prover) = prover.connect(
-        TlsClientConfig::builder()
-            .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
-            .root_store(root_store())
-            .build()
-            .unwrap(),
-        client_socket.compat(),
-    )?;
-    let prover_task = tokio::spawn(prover.into_future());
-
-    if scenario.echo_first {
-        // Any unrecognized payload makes the server respond with "hello".
-        // The response is not read here: decryption is deferred by default,
-        // so the plaintext only becomes available at closure. It still ends
-        // up in the received transcript as an application record.
-        tls_connection.write_all(&pad_record(b"echo")).await?;
-    }
-
+    // The server echoes once and then stays open, so the prover parks waiting
+    // for closure. Confirm it is actually parked before dropping the session;
+    // otherwise this would only exercise the `is_closed` fast path.
     tls_connection
-        .write_all(&pad_record(scenario.command))
-        .await?;
+        .write_all(&pad_record(b"echo"))
+        .await
+        .expect("prover should write the request");
+    tokio::time::timeout(Duration::from_secs(10), &mut prover_task)
+        .await
+        .expect_err("prover should be parked on the silent server");
 
-    if scenario.close {
-        tls_connection.close().await?;
-    }
+    // Abort the only driver of the unsplit session. Dropping it must close the
+    // session closure and wake the parked prover.
+    prover_session.abort();
+    let _ = prover_session.await;
 
-    // Drain the connection while the prover drives it. The read must
-    // terminate on its own: on success the prover closes the connection
-    // handle after finalizing, and on error it closes the handle while
-    // surfacing the error. Either way the read observes EOF instead of
-    // hanging, so a regression that drops the handle without closing it
-    // would trip this timeout.
-    let mut buf = Vec::new();
-    tokio::time::timeout(
-        std::time::Duration::from_secs(60),
-        tls_connection.read_to_end(&mut buf),
-    )
-    .await
-    .expect("connection read should terminate once the prover closes the handle")?;
+    let prover_result = tokio::time::timeout(Duration::from_secs(10), prover_task)
+        .await
+        .expect("prover should be cancelled when its unsplit session is dropped")
+        .expect("prover task should not panic");
+    prover_result.expect_err("prover must not finalize after its session is dropped");
 
-    let prover = prover_task.await.unwrap()?;
-    prover.close().await?;
+    // The verifier loses its peer and must terminate as well.
+    let verifier_result = tokio::time::timeout(Duration::from_secs(10), verifier_task)
+        .await
+        .expect("verifier should not hang after the prover session is dropped")
+        .expect("verifier task should not panic");
+    verifier_result.expect_err("verifier must not finalize after the prover session is dropped");
 
-    Ok(())
+    server_task.abort();
 }
 
-/// Pads a command to a full record, as expected by the raw test server,
-/// which reads records of exactly `APP_RECORD_LENGTH` bytes.
+fn root_store() -> RootCertStore {
+    RootCertStore {
+        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+    }
+}
+
 fn pad_record(command: &[u8]) -> Vec<u8> {
     let mut record = command.to_vec();
     record.resize(APP_RECORD_LENGTH, 0);
     record
 }
 
-/// Runs the verifier through the MPC commit phase and closes the session.
 async fn run_verifier_commit(verifier: Verifier) -> Result<(), TestError> {
     let verifier = verifier.commit().await?;
 

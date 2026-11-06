@@ -27,7 +27,8 @@ fn drains_buffered_records_across_polls() {
     let mut polls = 0;
     loop {
         let before = writer.written;
-        poll_write_to_server(&mut cx, &receiver, &mut writer).unwrap();
+        let mut server_closed = false;
+        poll_write_to_server(&mut cx, &receiver, &mut writer, &mut server_closed).unwrap();
         polls += 1;
 
         if writer.written == before {

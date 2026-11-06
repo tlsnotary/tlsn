@@ -3,7 +3,10 @@
 use crate::{
     Error as TlsnError,
     deps::ProverZk,
-    prover::client::{DecryptState, TlsClient, TlsOutput},
+    prover::{
+        client::{DecryptState, TlsClient, TlsOutput},
+        close::CloseState,
+    },
     proxy::{ProxyProver, TlsBytes},
 };
 use futures::FutureExt;
@@ -34,13 +37,25 @@ const ALLOWED_SUITES: &[CipherSuite] = &[
 ];
 
 pub(crate) struct ProxyTlsClient {
+    /// TLS client connection state machine.
     conn: ClientConnection,
+    /// Master secret captured during the handshake for finalization.
     ms_log: Arc<MasterSecretLog>,
+    /// Connection timestamp, set when the handshake completes.
     time: Option<u64>,
+    /// Captured TLS and application traffic for the transcript.
     traffic: TlsBytes,
-    client_closed: bool,
-    server_closed: bool,
+    /// Whether the server transport closed abruptly (EOF/BrokenPipe). This is
+    /// a transport fact rather than close state: it decides whether sending
+    /// our close_notify can still succeed.
+    transport_closed: bool,
+    /// Decrypted application bytes still buffered by rustls.
+    plaintext_bytes_to_read: usize,
+    /// Per-direction close state. Drives the finalize decision.
+    close: CloseState,
+    /// Protocol state machine.
     state: State,
+    /// Shared decryption toggle.
     decrypt: Arc<DecryptState>,
 }
 
@@ -113,8 +128,9 @@ impl ProxyTlsClient {
             ms_log,
             time: None,
             traffic: TlsBytes::default(),
-            client_closed: false,
-            server_closed: false,
+            transport_closed: false,
+            plaintext_bytes_to_read: 0,
+            close: CloseState::new(),
             state: State::Init { prover },
             decrypt: Arc::new(decrypt),
         };
@@ -162,7 +178,7 @@ impl TlsClient for ProxyTlsClient {
         matches!(
             self.state,
             State::Handshaking { .. } | State::Connected { .. }
-        ) && !self.client_closed
+        ) && !self.close.close_requested()
     }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
@@ -172,6 +188,10 @@ impl TlsClient for ProxyTlsClient {
             Err(e) => return Err(TlsnError::internal().with_source(e)),
         }?;
         self.traffic.app_recv.extend_from_slice(&buf[..n]);
+        self.plaintext_bytes_to_read = self.plaintext_bytes_to_read.saturating_sub(n);
+        if n == 0 && self.close.peer_closed() {
+            self.close.mark_drained();
+        }
 
         Ok(n)
     }
@@ -188,11 +208,43 @@ impl TlsClient for ProxyTlsClient {
     }
 
     fn client_close(&mut self) {
-        self.client_closed = true;
+        self.close.mark_close_requested();
+    }
+
+    fn is_handshaking(&self) -> bool {
+        matches!(self.state, State::Init { .. } | State::Handshaking { .. })
+    }
+
+    fn incoming_finished(&self) -> bool {
+        self.close.peer_closed()
+    }
+
+    fn plaintext_pending(&self) -> bool {
+        self.close.peer_closed() && !self.close.inbound_drained()
+    }
+
+    fn has_pending_plaintext(&self) -> bool {
+        self.plaintext_bytes_to_read > 0 || self.plaintext_pending()
     }
 
     fn server_close(&mut self) {
-        self.server_closed = true;
+        self.transport_closed = true;
+        self.close.mark_peer_closed();
+        // Nothing can be written to a dead transport, so the outbound side is
+        // finished from the application's point of view.
+        self.close.mark_close_requested();
+    }
+
+    fn wants_write_shutdown(&self) -> bool {
+        matches!(self.state, State::Connected { .. })
+            && self.close.close_requested()
+            && !self.close.outbound_flushed()
+            && !self.conn.wants_write()
+    }
+
+    fn write_shutdown_complete(&mut self) {
+        self.close.mark_outbound_flushed();
+        self.close.mark_outbound_closed();
     }
 
     fn decrypt(&self) -> Arc<DecryptState> {
@@ -211,11 +263,12 @@ impl TlsClient for ProxyTlsClient {
             }
             State::Handshaking { prover } => {
                 debug!("inner client is handshaking");
-                self.conn.process_new_packets().map_err(|err| {
+                let io_state = self.conn.process_new_packets().map_err(|err| {
                     TlsnError::internal()
                         .with_msg("rustls error")
                         .with_source(err)
                 })?;
+                self.plaintext_bytes_to_read = io_state.plaintext_bytes_to_read();
                 if !self.conn.is_handshaking() {
                     let now = web_time::UNIX_EPOCH
                         .elapsed()
@@ -229,6 +282,17 @@ impl TlsClient for ProxyTlsClient {
                         prover,
                     };
                     self.poll(cx)
+                } else if self.transport_closed {
+                    Poll::Ready(Err(
+                        TlsnError::io().with_msg("server closed during TLS handshake")
+                    ))
+                } else if self.close.close_requested() {
+                    // A client that abandons the handshake leaves no data to
+                    // drive rustls and no socket to wake on, so the state
+                    // machine would stay pending forever.
+                    Poll::Ready(Err(
+                        TlsnError::io().with_msg("client closed during TLS handshake")
+                    ))
                 } else {
                     self.state = State::Handshaking { prover };
                     Poll::Pending
@@ -239,13 +303,49 @@ impl TlsClient for ProxyTlsClient {
                 prover,
             } => {
                 trace!("inner client is connected");
-                self.conn.process_new_packets().map_err(|err| {
+                let io_state = self.conn.process_new_packets().map_err(|err| {
                     TlsnError::internal()
                         .with_msg("rustls error")
                         .with_source(err)
                 })?;
+                self.plaintext_bytes_to_read = io_state.plaintext_bytes_to_read();
 
-                if self.server_closed {
+                if io_state.peer_has_closed() && !self.close.peer_closed() {
+                    self.close.mark_peer_closed();
+                    // TLS 1.2 requires an immediate close_notify response and
+                    // that pending writes be discarded. Writes already handed
+                    // to rustls may still be in flight; from here on we stop
+                    // accepting new application plaintext.
+                    self.close.mark_close_requested();
+                    debug!("server closed its TLS write side; responding with close_notify");
+                }
+
+                // `wants_read` is false once the state leaves `Connected`, so
+                // only mark the inbound side drained while it is still safe to
+                // deliver the remaining plaintext.
+                if self.close.peer_closed() && io_state.plaintext_bytes_to_read() == 0 {
+                    self.close.mark_drained();
+                }
+
+                if self.close.close_requested() && !self.transport_closed && !sent_close_notify {
+                    debug!("sent close notify");
+                    self.conn.send_close_notify();
+                    sent_close_notify = true;
+                }
+
+                // Send ProxyFinished once, when both directions are finished:
+                // the prover's own close_notify has been handed to the proxy
+                // stream and the write half is closed, and the server has
+                // either sent its TLS close_notify or the proxy stream reached
+                // EOF. The counts are final at this point.
+                //
+                // Do not finalize while rustls still holds decrypted plaintext:
+                // `wants_read` is false once the state leaves `Connected`, so
+                // the prover would never hand that plaintext to the
+                // application and the response would be lost.
+                let finalize_now = self.close.can_finalize();
+
+                if finalize_now {
                     let ms = self.ms_log.take();
                     if ms.is_empty() {
                         return Poll::Ready(Err(
@@ -256,21 +356,16 @@ impl TlsClient for ProxyTlsClient {
                         TlsnError::internal().with_msg("connection timestamp is not set")
                     })?;
                     let traffic = std::mem::take(&mut self.traffic);
+                    let tls_sent = traffic.tls_sent.len() as u64;
+                    let tls_recv = traffic.tls_recv.len() as u64;
 
-                    let fut = Box::pin(prover.finalize(ms, time, traffic));
+                    let fut = Box::pin(async move {
+                        let mut prover = prover;
+                        prover.send_finished(tls_sent, tls_recv).await?;
+                        prover.finalize(ms, time, traffic).await
+                    });
 
                     self.state = State::Finalizing { fut };
-                    self.poll(cx)
-                } else if self.client_closed && !sent_close_notify {
-                    debug!("sent close notify");
-                    self.conn.send_close_notify();
-                    sent_close_notify = true;
-
-                    self.state = State::Connected {
-                        sent_close_notify,
-                        prover,
-                    };
-
                     self.poll(cx)
                 } else {
                     self.state = State::Connected {

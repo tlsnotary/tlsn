@@ -1,12 +1,14 @@
 use crate::{
     Error as TlsnError, TlsOutput,
     deps::VerifierZk,
+    msg::ProxyFinished,
     proxy::{MsVisibility, References, VerifyDataCheck, alloc_proxy_refs},
 };
 use hmac_sha256::Prf;
 use mpz_common::Context;
 use mpz_memory_core::MemoryExt;
 use mpz_vm_core::Execute;
+use serio::stream::IoStreamExt;
 use tlsn_core::transcript::TlsTranscript;
 
 pub(crate) struct ProxyVerifier {
@@ -49,11 +51,26 @@ impl ProxyVerifier {
         })
     }
 
+    /// Waits for the prover to signal that it is done with the proxy
+    /// connection.
+    pub(crate) async fn wait_finished(&mut self) -> Result<ProxyFinished, TlsnError> {
+        self.ctx
+            .io_mut()
+            .expect_next::<ProxyFinished>()
+            .await
+            .map_err(|e| {
+                TlsnError::io()
+                    .with_msg("failed to receive proxy finished message")
+                    .with_source(e)
+            })
+    }
+
     pub(crate) async fn finalize(
         mut self,
         sent: &[u8],
         recv: &[u8],
         conn_time: u64,
+        finished: &ProxyFinished,
     ) -> Result<
         (
             Context,
@@ -64,6 +81,11 @@ impl ProxyVerifier {
         ),
         TlsnError,
     > {
+        // With ProxyFinished gated on both directions finishing, the two sides
+        // must agree on the byte counts.
+        ensure_equal(sent, finished.tls_sent, "sent")?;
+        ensure_equal(recv, finished.tls_recv, "recv")?;
+
         let tls_transcript = TlsTranscript::builder()
             .time(conn_time)
             .tls_sent(sent)
@@ -76,11 +98,13 @@ impl ProxyVerifier {
             })?;
         tracing::debug!("successfully parsed transcript");
 
-        let mut refs = self.refs.expect("key refs should be available");
+        let mut refs = self
+            .refs
+            .ok_or_else(|| TlsnError::internal().with_msg("proxy verifier key refs are missing"))?;
 
-        let cf_hash: [u8; 32] = tls_transcript
-            .cf_hash()
-            .expect("client finished hash should be available");
+        let cf_hash: [u8; 32] = tls_transcript.cf_hash().ok_or_else(|| {
+            TlsnError::internal().with_msg("client finished hash is missing from tls transcript")
+        })?;
 
         let tlsn_core::connection::CertBinding::V1_2(binding) =
             tls_transcript.certificate_binding()
@@ -123,9 +147,9 @@ impl ProxyVerifier {
             .ok_or(TlsnError::internal().with_msg("unable to receive cf_vd from decoding"))?;
 
         // Now that cf_vd is known, compute sf_hash and resume the PRF.
-        let sf_hash: [u8; 32] = tls_transcript
-            .sf_hash(&cf_vd)
-            .expect("server finished hash should be available");
+        let sf_hash: [u8; 32] = tls_transcript.sf_hash(&cf_vd).ok_or_else(|| {
+            TlsnError::internal().with_msg("server finished hash is missing from tls transcript")
+        })?;
 
         self.prf
             .set_sf_hash(sf_hash)
@@ -171,5 +195,59 @@ impl ProxyVerifier {
             self.cf_vd_check,
             self.sf_vd_check,
         ))
+    }
+}
+
+/// Requires the prover's byte count to match what the verifier relayed.
+///
+/// `ProxyFinished` is sent only after both directions finish, so there is no
+/// legitimate prefix difference left. A mismatch means the peers disagree
+/// about the stream — for example, server data after `close_notify` or a
+/// partial final record.
+fn ensure_equal(recorded: &[u8], claim: u64, direction: &str) -> Result<(), TlsnError> {
+    let claim = usize::try_from(claim).map_err(|_| {
+        TlsnError::internal().with_msg(format!(
+            "{direction}: prover claims an unrepresentable byte count"
+        ))
+    })?;
+
+    if claim != recorded.len() {
+        return Err(TlsnError::internal().with_msg(format!(
+            "{direction}: prover claims {claim} bytes but {} were relayed",
+            recorded.len()
+        )));
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ensure_equal;
+
+    #[test]
+    fn equal_claim_passes() {
+        assert!(ensure_equal(b"abcdef", 6, "recv").is_ok());
+    }
+
+    #[test]
+    fn shorter_claim_is_rejected() {
+        assert!(ensure_equal(b"abcdef", 4, "recv").is_err());
+    }
+
+    #[test]
+    fn longer_claim_is_rejected() {
+        assert!(ensure_equal(b"abcdef", 7, "recv").is_err());
+        assert!(ensure_equal(b"abcdef", 7, "sent").is_err());
+    }
+
+    #[test]
+    fn empty_claim_is_rejected() {
+        assert!(ensure_equal(b"abcdef", 0, "recv").is_err());
+    }
+
+    #[test]
+    fn unrepresentable_claim_is_rejected() {
+        assert!(ensure_equal(b"abcdef", u64::MAX, "recv").is_err());
     }
 }

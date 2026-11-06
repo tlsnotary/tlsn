@@ -1,6 +1,7 @@
 //! Prover.
 
 mod client;
+mod close;
 mod conn;
 mod control;
 mod future;
@@ -21,17 +22,20 @@ use crate::{
     msg::{ProveRequestMsg, Response, TlsCommitRequestMsg},
     prover::{
         client::{MpcTlsClient, ProxyTlsClient, TlsClient},
+        close::CloseState,
         future::FutureState,
         state::ConnectedProj,
     },
+    session::SessionClosure,
     tag::verify_tags,
+    transport::is_transport_gone,
 };
 
 use futures::{AsyncRead, AsyncWrite, ready};
 use mpz_common::Context;
 use mpz_vm_core::Execute;
 use serio::{SinkExt, stream::IoStreamExt};
-use std::{fmt::Debug, marker::PhantomData, pin::Pin, task::Poll};
+use std::{fmt::Debug, marker::PhantomData, pin::Pin, sync::Arc, task::Poll};
 use tls_core::dns::ServerName as TlsServerName;
 use tlsn_core::{
     config::{
@@ -51,6 +55,7 @@ pub struct Prover<T: state::ProverState = state::Initialized> {
     span: Span,
     ctx: Option<Context>,
     mux_handle: Handle,
+    closure: Arc<SessionClosure>,
     state: T,
 }
 
@@ -74,13 +79,19 @@ impl Prover<state::Initialized> {
     /// * `ctx` - A thread context.
     /// * `mux_handle` - A handle for the multiplexer.
     /// * `config` - The configuration for the prover.
-    pub(crate) fn new(ctx: Context, mux_handle: Handle, config: ProverConfig) -> Self {
+    pub(crate) fn new(
+        ctx: Context,
+        mux_handle: Handle,
+        config: ProverConfig,
+        closure: Arc<SessionClosure>,
+    ) -> Self {
         let span = info_span!("prover");
         Self {
             config,
             span,
             ctx: Some(ctx),
             mux_handle,
+            closure,
             state: state::Initialized,
         }
     }
@@ -142,6 +153,7 @@ impl Prover<state::Initialized> {
             span: self.span,
             ctx: None,
             mux_handle: self.mux_handle,
+            closure: self.closure,
             state: state::CommitAccepted {
                 deps,
                 _pd: PhantomData,
@@ -190,11 +202,12 @@ impl Prover<state::CommitAccepted<Mpc>> {
         };
 
         let (client_io, tlsn_conn) = futures_plex::duplex(BUF_CAP);
-        let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
+        let (client_end, socket_end) = futures_plex::duplex(BUF_CAP);
 
         let prover = Prover {
             ctx: self.ctx,
             mux_handle: self.mux_handle,
+            closure: self.closure,
             config: self.config,
             span: self.span,
             state: state::Connected {
@@ -204,10 +217,12 @@ impl Prover<state::CommitAccepted<Mpc>> {
                 client_io,
                 output: None,
                 server_socket,
-                client_to_server,
-                server_to_client,
-                client_closed: false,
-                server_closed: false,
+                client_end,
+                socket_end,
+                close: CloseState::new(),
+                server_transport_closed: false,
+                pipe_closed: false,
+                pipe_drained: false,
             },
         };
 
@@ -260,11 +275,12 @@ impl Prover<state::CommitAccepted<Proxy>> {
         };
 
         let (client_io, tlsn_conn) = futures_plex::duplex(BUF_CAP);
-        let (client_to_server, server_to_client) = futures_plex::duplex(BUF_CAP);
+        let (client_end, socket_end) = futures_plex::duplex(BUF_CAP);
 
         let prover = Prover {
             ctx: self.ctx,
             mux_handle: self.mux_handle,
+            closure: self.closure,
             config: self.config,
             span: self.span,
             state: state::Connected {
@@ -274,10 +290,12 @@ impl Prover<state::CommitAccepted<Proxy>> {
                 client_io,
                 output: None,
                 server_socket: proxy_socket,
-                client_to_server,
-                server_to_client,
-                client_closed: false,
-                server_closed: false,
+                client_end,
+                socket_end,
+                close: CloseState::new(),
+                server_transport_closed: false,
+                pipe_closed: false,
+                pipe_drained: false,
             },
         };
 
@@ -299,9 +317,50 @@ where
     fn poll(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Error>> {
         let mut state = Pin::new(&mut self.state).project();
 
+        // The verifier may disappear while the prover is parked waiting on a
+        // silent server. The session driver notices the broken connection and
+        // wakes us here so the prover fails instead of hanging forever.
+        //
+        // Only fail while the TLS output is still missing: once it exists the
+        // connection phase has succeeded, and a session that closes while the
+        // transport handles are being closed must not turn that success into an
+        // error.
+        if state.output.is_none() {
+            self.closure.register(cx.waker());
+            if self.closure.is_closed() {
+                return Poll::Ready(Err(
+                    Error::io().with_msg("session closed while the prover was connected")
+                ));
+            }
+        }
+
         Self::poll_io(&mut state, cx)?;
 
-        if *state.server_closed && state.output.is_some() {
+        if state.output.is_some() {
+            // The TLS side is finished producing bytes, but those bytes may
+            // still be staged between the TLS client and the transport. Close
+            // the staging channel, then wait until its reader reports EOF
+            // before closing the transport write half.
+            if !*state.pipe_closed {
+                ready!(state.client_end.as_mut().poll_close(cx))?;
+                *state.pipe_closed = true;
+            }
+
+            if !*state.pipe_drained {
+                if !poll_write_to_server(
+                    cx,
+                    &state.socket_end,
+                    state.server_socket.as_mut(),
+                    &mut *state.server_transport_closed,
+                )? {
+                    return Poll::Pending;
+                }
+                *state.pipe_drained = true;
+                if *state.server_transport_closed && !state.close.peer_closed() {
+                    state.close.mark_peer_closed();
+                }
+            }
+
             ready!(state.client_io.poll_close(cx))?;
             ready!(state.server_socket.poll_close(cx))?;
 
@@ -316,6 +375,7 @@ where
 
         let read_tls_ready = state.tls_client.wants_read_tls();
         let write_ready = state.tls_client.wants_write();
+        let was_handshaking = state.tls_client.is_handshaking();
 
         if state.output.is_none()
             && let Poll::Ready(output) = state.tls_client.poll(cx)?
@@ -323,7 +383,65 @@ where
             *state.output = Some(output);
         }
 
+        // A client that closes its write half during the handshake may still
+        // be reading the response; the server still drives the handshake. Hold
+        // the close until the handshake is over so already-written plaintext
+        // is sent before the TLS close_notify.
+        if state.close.close_requested()
+            && state.output.is_none()
+            && was_handshaking
+            && !state.tls_client.is_handshaking()
+        {
+            state.tls_client.client_close();
+            cx.waker().wake_by_ref();
+        }
+
+        // A peer that sends close_notify has finished its TLS stream even if
+        // it keeps the TCP connection open. Treat that as server closure so
+        // the prover does not wait for a FIN that may never arrive.
+        if !state.close.peer_closed() && state.tls_client.received_close_notify() {
+            state.close.mark_peer_closed();
+            state.tls_client.server_close();
+            cx.waker().wake_by_ref();
+        }
+
         let progressed = Self::io_from_tls_client_progress(state, cx)?;
+
+        // The peer's TLS write side is finished. Give the application EOF once
+        // no decrypted plaintext is left, so a reader that waits for EOF can
+        // close its write side and let the prover finalize. After the EOF is
+        // queued, the prover must not write to `client_io` again.
+        if !state.close.eof_delivered()
+            && state.tls_client.incoming_finished()
+            && !state.tls_client.plaintext_pending()
+        {
+            // The inbound side is definitively finished: the peer closed and
+            // all plaintext was delivered to the app.
+            state.close.mark_peer_closed();
+            state.close.mark_drained();
+
+            match state.client_io.as_mut().poll_close(cx) {
+                Poll::Ready(Ok(())) => state.close.mark_eof_delivered(),
+                Poll::Ready(Err(e)) => return Err(Error::from(e)),
+                Poll::Pending => {}
+            }
+        }
+
+        // Only close once nothing is left to forward: the staging channel is
+        // closed and drained, so every TLS byte has been handed to the
+        // transport.
+        if state.tls_client.wants_write_shutdown() && *state.pipe_drained {
+            match state.server_socket.as_mut().poll_close(cx) {
+                Poll::Ready(Ok(())) => {
+                    state.tls_client.write_shutdown_complete();
+                    // Wake the prover loop so its next poll re-polls the TLS
+                    // client and observes the completed write shutdown.
+                    cx.waker().wake_by_ref();
+                }
+                Poll::Ready(Err(e)) => return Err(Error::from(e)),
+                Poll::Pending => {}
+            }
+        }
 
         // Re-poll if this phase moved bytes or a direction that was blocked
         // became consumable. Checking after `io_from_tls_client` also covers
@@ -406,6 +524,7 @@ where
             span: self.span,
             ctx: Some(ctx),
             mux_handle: self.mux_handle,
+            closure: self.closure,
             state: state::Committed {
                 vm,
                 server_name: self.state.server_name,
@@ -434,27 +553,45 @@ where
                         simplex.advance(write);
                     }
                 }
-            } else if !*state.client_closed && !*state.server_closed {
-                *state.client_closed = true;
-                state.tls_client.client_close();
+            } else if !state.close.close_requested() && !*state.server_transport_closed {
+                state.close.mark_close_requested();
+                if !state.tls_client.is_handshaking() {
+                    state.tls_client.client_close();
+                }
             }
         }
 
-        // server_socket -> buf
-        if let Poll::Ready(write) = state
-            .server_to_client
-            .poll_write_from(cx, state.server_socket.as_mut())?
+        // server_socket -> socket_end
+        match state
+            .socket_end
+            .poll_write_from(cx, state.server_socket.as_mut())
         {
-            if write == 0 && !*state.server_closed {
-                *state.server_closed = true;
-            } else if write > 0 {
-                cx.waker().wake_by_ref();
+            Poll::Ready(Ok(write)) => {
+                if write == 0 && !*state.server_transport_closed {
+                    *state.server_transport_closed = true;
+                    state.close.mark_peer_closed();
+                } else if write > 0 {
+                    cx.waker().wake_by_ref();
+                }
             }
+            Poll::Ready(Err(err)) if is_transport_gone(&err) => {
+                // In MPC mode `server_socket` is the server connection, so an
+                // abrupt close here is a server RST. In proxy mode it is the
+                // mux stream to the verifier, so the same error means a
+                // verifier/mux failure — which should be fatal. This layer does
+                // not know the mode, so treat it as the server transport
+                // closing in both cases; the proxy session will then fail when
+                // it next needs the verifier.
+                *state.server_transport_closed = true;
+                state.close.mark_peer_closed();
+            }
+            Poll::Ready(Err(err)) => return Err(Error::from(err)),
+            Poll::Pending => {}
         }
 
-        // buf -> tls_client
+        // client_end -> tls_client
         // Always poll to register wakers, then check wants_read_tls()
-        if let Poll::Ready(mut simplex) = state.client_to_server.as_mut().poll_lock_read(cx)
+        if let Poll::Ready(mut simplex) = state.client_end.as_mut().poll_lock_read(cx)
             && let Poll::Ready(buf) = simplex.poll_get(cx)?
         {
             if state.tls_client.wants_read_tls() {
@@ -464,7 +601,7 @@ where
                     cx.waker().wake_by_ref();
                 }
             }
-        } else if *state.server_closed {
+        } else if *state.server_transport_closed {
             state.tls_client.server_close();
         }
 
@@ -485,9 +622,12 @@ where
     ) -> Result<bool, Error> {
         let mut progressed = false;
 
-        // tls_client -> buf
-        // Always poll to register wakers, then check wants_write_tls()
-        if let Poll::Ready(mut simplex) = state.client_to_server.as_mut().poll_lock_write(cx)
+        // tls_client -> client_end
+        // Always poll to register wakers, then check wants_write_tls().
+        // Skipped once the client end is closed: writing to it would fail with
+        // a broken pipe, which is expected rather than an error.
+        if !*state.pipe_closed
+            && let Poll::Ready(mut simplex) = state.client_end.as_mut().poll_lock_write(cx)
             && let Poll::Ready(buf) = simplex.poll_mut(cx)?
         {
             let write = state.tls_client.write_tls(buf)?;
@@ -496,15 +636,53 @@ where
                 progressed = true;
             } else if state.tls_client.wants_write_tls() {
                 cx.waker().wake_by_ref();
+            } else if state.tls_client.wants_write_shutdown() && !*state.pipe_closed {
+                // Every TLS byte has been handed to the staging channel.
+                // Closing the client end marks the end of the stream: the
+                // reader below only sees end-of-file once it has drained
+                // everything, which is the signal that the server socket may
+                // be closed.
+                //
+                // Close through the write guard already held: the duplex would
+                // re-take the same lock and only ever get `Pending`, so the
+                // close would never happen. No wake is needed afterwards — the
+                // close wakes the reader itself, and the drain below
+                // re-schedules whenever it makes progress.
+                match Pin::new(&mut *simplex).poll_close(cx) {
+                    Poll::Ready(Ok(())) => *state.pipe_closed = true,
+                    Poll::Ready(Err(e)) => return Err(Error::from(e)),
+                    Poll::Pending => {}
+                }
             }
         }
 
-        // buf -> server_socket
-        poll_write_to_server(cx, &state.server_to_client, state.server_socket.as_mut())?;
+        // socket_end -> server_socket.
+        // Drained is sticky: once the channel is empty it stays empty, and a
+        // later poll that cannot take the lock must not reset it. Stop once it
+        // is set, so nothing is written into a socket that is being closed.
+        if !*state.pipe_drained
+            && poll_write_to_server(
+                cx,
+                &state.socket_end,
+                state.server_socket.as_mut(),
+                &mut *state.server_transport_closed,
+            )?
+        {
+            *state.pipe_drained = true;
+            if *state.server_transport_closed && !state.close.peer_closed() {
+                state.close.mark_peer_closed();
+            }
+        }
 
         // tls_client -> tls_conn
         // Always poll to register wakers, then check wants_read()
-        if let Poll::Ready(mut simplex) = state.client_io.as_mut().poll_lock_write(cx) {
+        if !state.close.eof_delivered()
+            && let Poll::Ready(mut simplex) = state.client_io.as_mut().poll_lock_write(cx)
+        {
+            // Defer the fatal-app-close decision until `poll_mut`'s mutable
+            // borrow has ended, so the number of bytes still buffered in the
+            // app-side pipe can be inspected.
+            let mut app_gone = None;
             match simplex.poll_mut(cx) {
                 Poll::Ready(Ok(buf)) if state.tls_client.wants_read() => {
                     let read = state.tls_client.read(buf)?;
@@ -513,25 +691,26 @@ where
                         progressed = true;
                     }
                 }
-                // The application side is gone. If it still had plaintext to
-                // read, waiting for a reader that can never arrive would park
-                // the prover forever.
                 Poll::Ready(Err(err))
                     if matches!(
                         err.kind(),
                         std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
-                    ) && state.tls_client.wants_read() =>
+                    ) =>
                 {
+                    app_gone = Some(err);
+                }
+                Poll::Ready(Err(err)) => return Err(Error::from(err)),
+                _ => {}
+            }
+
+            if let Some(err) = app_gone {
+                // The application side is gone. Anything still buffered by
+                // the TLS client, or already handed to the app-side pipe but
+                // not read, can never be delivered.
+                if state.tls_client.has_pending_plaintext() || simplex.remaining() > 0 {
                     return Err(Error::from(err));
                 }
                 // A closed application with nothing left to deliver is benign.
-                Poll::Ready(Err(err))
-                    if matches!(
-                        err.kind(),
-                        std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
-                    ) => {}
-                Poll::Ready(Err(err)) => return Err(Error::from(err)),
-                _ => {}
             }
         }
 
@@ -539,27 +718,43 @@ where
     }
 }
 
+/// Moves staged bytes from the socket end of the staging channel into the
+/// server socket.
+///
+/// Returns whether the channel has been fully drained. It reports end-of-file
+/// only after every buffered byte has been read out, so this is a reliable
+/// "nothing is left to forward" signal once the client end is closed.
 fn poll_write_to_server<S>(
     cx: &mut std::task::Context<'_>,
     buf: &futures_plex::DuplexStream,
     server_socket: S,
-) -> Result<(), Error>
+    server_transport_closed: &mut bool,
+) -> Result<bool, Error>
 where
     S: AsyncWrite + Unpin,
 {
-    match buf.poll_read_to(cx, server_socket) {
+    let drained = match buf.poll_read_to(cx, server_socket) {
         // The destination may accept only part of the buffer per poll.
         // Schedule another poll after making progress so queued records do not
         // wait for unrelated I/O to wake this prover.
-        Poll::Ready(Ok(written)) if written > 0 => cx.waker().wake_by_ref(),
-        // Do not attempt to write into closed sockets.
-        Poll::Ready(Err(err)) if matches!(err.kind(), std::io::ErrorKind::BrokenPipe) => {}
-        Poll::Ready(Err(err)) if matches!(err.kind(), std::io::ErrorKind::ConnectionReset) => {}
+        Poll::Ready(Ok(written)) if written > 0 => {
+            cx.waker().wake_by_ref();
+            false
+        }
+        // End-of-file: the write half is closed and nothing remains buffered.
+        Poll::Ready(Ok(_)) => true,
+        // The socket is gone, so nothing further can be forwarded. Treat this
+        // as drained so the shutdown path still runs, as it did before there
+        // was any drain check.
+        Poll::Ready(Err(err)) if is_transport_gone(&err) => {
+            *server_transport_closed = true;
+            true
+        }
         Poll::Ready(Err(err)) => return Err(Error::from(err)),
-        _ => {}
-    }
+        Poll::Pending => false,
+    };
 
-    Ok(())
+    Ok(drained)
 }
 
 impl Prover<state::Committed> {

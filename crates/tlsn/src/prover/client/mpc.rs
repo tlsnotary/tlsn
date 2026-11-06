@@ -3,7 +3,10 @@
 use crate::{
     deps::{ProverMpc, ProverZk},
     error::Error as TlsnError,
-    prover::client::{DecryptState, TlsClient, TlsOutput},
+    prover::{
+        client::{DecryptState, TlsClient, TlsOutput},
+        close::CloseState,
+    },
 };
 use futures::{Future, FutureExt};
 use mpc_tls::{MpcTlsLeader, SessionKeys, client::ClientConnection};
@@ -27,8 +30,16 @@ type FinalizeFuture =
 pub(crate) struct MpcTlsClient {
     state: State,
     decrypt: Arc<DecryptState>,
-    client_wants_close: bool,
-    server_closed: bool,
+    /// Whether the server side must be closed, as opposed to the client side.
+    /// This selects which mpc-tls close path to run; the close state itself is
+    /// tracked by `close`.
+    server_close_requested: bool,
+    /// Whether the client close_notify has been given a poll to reach the
+    /// transport before the server side is closed.
+    client_close_flushed: bool,
+    /// Per-direction close state.
+    close: CloseState,
+    handshaking: bool,
 }
 
 enum State {
@@ -85,8 +96,10 @@ impl MpcTlsClient {
 
         let client = Self {
             decrypt: Arc::new(decrypt),
-            client_wants_close: false,
-            server_closed: false,
+            server_close_requested: false,
+            client_close_flushed: false,
+            close: CloseState::new(),
+            handshaking: true,
             state: State::Start {
                 inner: Box::new(inner),
             },
@@ -190,11 +203,20 @@ impl TlsClient for MpcTlsClient {
     }
 
     fn client_close(&mut self) {
-        self.client_wants_close = true;
+        self.close.mark_close_requested();
+    }
+
+    fn is_handshaking(&self) -> bool {
+        self.handshaking
     }
 
     fn server_close(&mut self) {
-        self.server_closed = true;
+        self.server_close_requested = true;
+        self.close.mark_peer_closed();
+    }
+
+    fn received_close_notify(&self) -> bool {
+        self.close.peer_closed()
     }
 
     fn decrypt(&self) -> Arc<DecryptState> {
@@ -208,6 +230,7 @@ impl TlsClient for MpcTlsClient {
         match std::mem::replace(&mut self.state, State::Error) {
             State::Start { inner } => {
                 trace!("inner client is starting");
+                self.handshaking = true;
                 self.state = State::Busy {
                     fut: Box::pin(inner.start()),
                 };
@@ -215,16 +238,43 @@ impl TlsClient for MpcTlsClient {
             }
             State::Active { mut inner } => {
                 trace!("inner client is active");
+                self.handshaking = inner.tls.is_handshaking();
+                if inner.tls.received_close_notify() {
+                    self.close.mark_peer_closed();
+                }
                 let decrypt = self.decrypt.is_decrypting();
 
                 if !inner.tls.is_handshaking() {
-                    if self.server_closed {
-                        self.state = State::CloseBusy {
-                            fut: Box::pin(inner.server_close()),
-                        };
-                    } else if self.client_wants_close {
+                    // If the peer closed its TLS write side, still send our own
+                    // close_notify before closing our side. Skipping this makes
+                    // the peer observe an abrupt EOF.
+                    let peer_sent_close_notify = inner.tls.received_close_notify();
+                    let client_close_requested = self.close.close_requested();
+
+                    if inner.client_closed
+                        && self.server_close_requested
+                        && !self.client_close_flushed
+                    {
+                        // Give the prover one poll to forward the client
+                        // close_notify before the server side closes.
+                        self.client_close_flushed = true;
+                        self.state = State::Active { inner };
+                        cx.waker().wake_by_ref();
+                        return Poll::Pending;
+                    }
+
+                    if !inner.client_closed
+                        && (peer_sent_close_notify
+                            || (client_close_requested && !self.server_close_requested))
+                    {
+                        // Answer the peer's close_notify with our own, or honor
+                        // an app close that happened before the peer closed.
                         self.state = State::Busy {
                             fut: Box::pin(inner.client_close()),
+                        };
+                    } else if self.server_close_requested {
+                        self.state = State::CloseBusy {
+                            fut: Box::pin(inner.server_close()),
                         };
                     } else if decrypt != inner.decrypt {
                         inner.tls.enable_decryption(decrypt);
@@ -240,6 +290,16 @@ impl TlsClient for MpcTlsClient {
                     }
                     return self.poll(cx);
                 }
+
+                if self.server_close_requested {
+                    // A server that disappears mid-handshake leaves nobody to
+                    // drive the MPC handshake and no socket to wake on. Without
+                    // this the state machine re-polls itself without bound.
+                    return Poll::Ready(Err(
+                        TlsnError::io().with_msg("server closed during TLS handshake")
+                    ));
+                }
+
                 self.state = State::Busy {
                     fut: Box::pin(inner.run()),
                 };
@@ -250,9 +310,13 @@ impl TlsClient for MpcTlsClient {
 
                 match fut.as_mut().poll(cx)? {
                     Poll::Ready(inner) => {
+                        self.handshaking = inner.tls.is_handshaking();
+                        if inner.tls.received_close_notify() {
+                            self.close.mark_peer_closed();
+                        }
                         self.state = State::Active { inner };
                         // re-poll immediately if a close transition is pending
-                        if self.server_closed {
+                        if self.server_close_requested {
                             return self.poll(cx);
                         }
                     }
@@ -262,6 +326,7 @@ impl TlsClient for MpcTlsClient {
             }
             State::CloseActive { inner } => {
                 trace!("inner client is active closing");
+                self.handshaking = false;
                 self.state = State::CloseBusy {
                     fut: Box::pin(inner.run()),
                 };
@@ -272,6 +337,16 @@ impl TlsClient for MpcTlsClient {
 
                 match fut.as_mut().poll(cx)? {
                     Poll::Ready(mut inner) if inner.is_record_layer_empty() => {
+                        // The record layer is empty in both directions: every
+                        // outbound byte has been flushed and every inbound
+                        // plaintext byte has been delivered. The peer may have
+                        // closed first, in which case no client close_notify
+                        // was requested; record the closing transition anyway.
+                        self.close.mark_close_requested();
+                        self.close.mark_outbound_flushed();
+                        self.close.mark_drained();
+                        debug_assert!(self.close.can_finalize());
+
                         let (ctx, transcript) =
                             inner.tls.finish().expect("connection should be closed");
                         self.state = State::Finalizing {
@@ -280,7 +355,11 @@ impl TlsClient for MpcTlsClient {
                         self.poll(cx)
                     }
                     Poll::Ready(inner) => {
+                        // There is still buffered plaintext to drain, so the
+                        // next poll must drive CloseActive. Without this wake a
+                        // caller with no further I/O can park here forever.
                         self.state = State::CloseActive { inner };
+                        cx.waker().wake_by_ref();
                         Poll::Pending
                     }
                     Poll::Pending => {
@@ -376,6 +455,10 @@ impl InnerState {
                 warn!("failed to send close_notify to server: {}", e);
             }
             self.client_closed = true;
+
+            // Flush the alert before a subsequent server_close can tear the
+            // connection down.
+            self = self.run().await?;
         }
 
         Ok(self)
