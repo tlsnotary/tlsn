@@ -657,3 +657,27 @@ fn test_mixed_hash_algorithms_per_range() {
     assert_eq!(commit.recv[0].algorithm, HashAlgorithm::Sha256);
     assert_eq!(commit.recv[1].algorithm, HashAlgorithm::Keccak256);
 }
+
+#[test]
+fn all_handlers_do_not_require_parseable_http() {
+    // An opaque (non-JSON) body declared application/json, as some encrypted
+    // APIs send.
+    let sent = b"POST /x HTTP/1.1\r\nhost: a.example\r\ncontent-type: application/json\r\ncookie: Authorization=hdr.pay.SIG\r\ncontent-length: 4\r\n\r\nQUJD";
+    let recv = b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nPK";
+    let handlers: Vec<Handler> = serde_json::from_value(serde_json::json!([
+        { "type": "SENT", "part": "ALL", "action": { "kind": "REVEAL" }, "params": { "type": "regex", "regex": "\\A[^\\r\\n]*" } },
+        { "type": "SENT", "part": "ALL", "action": { "kind": "REVEAL" }, "params": { "type": "regex", "regex": "(?s)\\r\\n\\r\\n.*\\z" } },
+        { "type": "RECV", "part": "ALL", "action": { "kind": "REVEAL" } }
+    ]))
+    .unwrap();
+    let out = compute_reveal(sent, recv, &handlers).unwrap();
+    assert_eq!(out.reveal.sent, vec![0..16, sent.len() - 8..sent.len()]);
+    assert_eq!(out.reveal.recv, vec![0..recv.len()]);
+
+    // A structural handler still parses, and still rejects the non-JSON body.
+    let body_handler: Vec<Handler> = serde_json::from_value(serde_json::json!([
+        { "type": "SENT", "part": "BODY", "action": { "kind": "REVEAL" } }
+    ]))
+    .unwrap();
+    assert!(compute_reveal(sent, recv, &body_handler).is_err());
+}

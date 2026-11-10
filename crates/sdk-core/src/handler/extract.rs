@@ -324,7 +324,7 @@ fn split_json_path(path: &str) -> Option<(&str, &str)> {
     }
 }
 
-fn extract_all(handler: &Handler, raw: &[u8]) -> Result<Vec<Range<usize>>> {
+pub(crate) fn extract_all(handler: &Handler, raw: &[u8]) -> Result<Vec<Range<usize>>> {
     let params = handler.params.as_ref();
 
     if let Some(params) = params

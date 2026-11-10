@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Result, SdkError},
-    types::{Commit, CommitRange, Handler, HandlerAction, HandlerType, Reveal},
+    types::{Commit, CommitRange, Handler, HandlerAction, HandlerPart, HandlerType, Reveal},
 };
 
 /// A byte range annotated with the handler that produced it.
@@ -69,9 +69,23 @@ pub fn compute_reveal(
     recv: &[u8],
     handlers: &[Handler],
 ) -> Result<ComputeRevealOutput> {
-    let request = spansy::http::parse_request(sent)
+    // `ALL` handlers select raw byte ranges, so a direction is only parsed when
+    // some handler needs its HTTP structure. Parsing is strict (e.g. a body
+    // declared `application/json` must be JSON), and an API whose body is
+    // opaque under that content type would otherwise be unprovable.
+    let needs_parse = |sent_side: bool| {
+        handlers.iter().any(|h| {
+            matches!(h.handler_type, HandlerType::Sent) == sent_side
+                && !matches!(h.part, HandlerPart::All)
+        })
+    };
+    let request = needs_parse(true)
+        .then(|| spansy::http::parse_request(sent))
+        .transpose()
         .map_err(|e| SdkError::handler(format!("failed to parse HTTP request: {e}")))?;
-    let response = spansy::http::parse_response(recv)
+    let response = needs_parse(false)
+        .then(|| spansy::http::parse_response(recv))
+        .transpose()
         .map_err(|e| SdkError::handler(format!("failed to parse HTTP response: {e}")))?;
 
     let mut reveal_sent: Vec<Range<usize>> = Vec::new();
@@ -81,13 +95,18 @@ pub fn compute_reveal(
     let mut sent_with_handlers: Vec<RangeWithHandler> = Vec::new();
     let mut recv_with_handlers: Vec<RangeWithHandler> = Vec::new();
 
-    let sent_msg = extract::HttpMessage::from(&request);
-    let recv_msg = extract::HttpMessage::from(&response);
+    let sent_msg = request.as_ref().map(extract::HttpMessage::from);
+    let recv_msg = response.as_ref().map(extract::HttpMessage::from);
 
     for handler in handlers {
-        let extracted = match handler.handler_type {
-            HandlerType::Sent => extract::extract_ranges(handler, &sent_msg, sent)?,
-            HandlerType::Recv => extract::extract_ranges(handler, &recv_msg, recv)?,
+        let (msg, raw) = match handler.handler_type {
+            HandlerType::Sent => (sent_msg.as_ref(), sent),
+            HandlerType::Recv => (recv_msg.as_ref(), recv),
+        };
+        let extracted = match msg {
+            Some(msg) => extract::extract_ranges(handler, msg, raw)?,
+            // Only reachable for `ALL` handlers (see `needs_parse`).
+            None => extract::extract_all(handler, raw)?,
         };
 
         let with_handlers_vec = match handler.handler_type {
