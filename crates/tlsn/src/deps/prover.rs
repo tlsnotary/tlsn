@@ -63,10 +63,7 @@ impl ProverMpcDeps {
         );
         let rcot_recv = kos::Receiver::new(kos::ReceiverConfig::default(), base_ot_send);
         let rcot_recv = ferret::Receiver::new(
-            ferret::FerretConfig::builder()
-                .lpn_type(ferret::LpnType::Regular)
-                .build()
-                .expect("ferret config is valid"),
+            ferret::FerretConfig::default(),
             Block::random(&mut rng),
             rcot_recv,
         );
@@ -147,10 +144,7 @@ impl ProverProxyDeps {
                 let base_ot_send = co::Sender::default();
                 let rcot_recv = kos::Receiver::new(kos::ReceiverConfig::default(), base_ot_send);
                 let rcot_recv = ferret::Receiver::new(
-                    ferret::FerretConfig::builder()
-                        .lpn_type(ferret::LpnType::Regular)
-                        .build()
-                        .expect("ferret config is valid"),
+                    ferret::FerretConfig::default(),
                     Block::random(&mut rng),
                     rcot_recv,
                 );
