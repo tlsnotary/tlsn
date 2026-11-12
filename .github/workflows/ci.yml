@@ -147,7 +147,9 @@ jobs:
 
       - name: Dry Run NPM Publish
         working-directory: crates/wasm/pkg
-        run: npm publish --dry-run
+        # npm 11 (Ubuntu 26.04 runners) requires an explicit dist-tag when
+        # publishing a prerelease version.
+        run: npm publish --dry-run --tag alpha
 
       - name: Save tlsn-wasm package for tagged builds
         if: startsWith(github.ref, 'refs/tags/')
