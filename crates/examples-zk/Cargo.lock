@@ -708,26 +708,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 
 [[package]]
-name = "bytemuck"
-version = "1.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8efb64bd706a16a1bdde310ae86b351e4d21550d98d056f22f8a7f7a2183fec"
-dependencies = [
- "bytemuck_derive",
-]
-
-[[package]]
-name = "bytemuck_derive"
-version = "1.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9abbd1bc6865053c427f7198e6af43bfdedc55ab791faed4fbd361d789575ff"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "bytes"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -814,7 +794,6 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8cf2a2c93cd704877c0858356ed03480ff301ee950b43f1cbe4573b088bfa6c"
 dependencies = [
- "block-buffer 0.12.0",
  "crypto-common 0.2.2",
  "inout 0.2.2",
 ]
@@ -861,12 +840,12 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "clmul"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
- "bytemuck",
  "cfg-if",
  "cpufeatures 0.3.0",
+ "zerocopy",
 ]
 
 [[package]]
@@ -970,15 +949,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crossbeam-channel"
-version = "0.5.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
-dependencies = [
- "crossbeam-utils",
-]
-
-[[package]]
 name = "crossbeam-deque"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1074,15 +1044,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0369ee1ad671834580515889b80f2ea915f23b8be8d0daa4bbaf2ac5c7590835"
 dependencies = [
  "cipher 0.4.4",
-]
-
-[[package]]
-name = "ctr"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baaca1c4b237092596f64d571e9db6ce4109c4ef9742e27590f1709594461f21"
-dependencies = [
- "cipher 0.5.2",
 ]
 
 [[package]]
@@ -1476,18 +1437,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "enum-try-as-inner"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c448fc2753338b04aa344ead5a6bdda26f2df2dcd85b65c86dd15b16819369e"
-dependencies = [
- "heck 0.4.1",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1500,7 +1449,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2391,8 +2340,8 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
 name = "matrix-transpose"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -2432,8 +2381,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-circuits"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "mpz-circuits-core",
  "mpz-circuits-data",
@@ -2441,8 +2390,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-circuits-core"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "bincode",
  "itybity 0.3.3",
@@ -2456,8 +2405,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-circuits-data"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "bincode",
  "mpz-circuits-core",
@@ -2465,22 +2414,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "mpz-cointoss"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
-dependencies = [
- "futures",
- "mpz-cointoss-core",
- "mpz-common",
- "mpz-core",
- "serio",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "mpz-cointoss-core"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "mpz-core",
  "opaque-debug",
@@ -2490,14 +2426,12 @@ dependencies = [
 
 [[package]]
 name = "mpz-common"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "async-task",
  "async-trait",
  "bytes",
- "cfg-if",
- "crossbeam-channel",
  "crossbeam-deque",
  "crossbeam-utils",
  "futures",
@@ -2512,14 +2446,13 @@ dependencies = [
 
 [[package]]
 name = "mpz-core"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "aes 0.9.0",
  "bcs 0.2.1",
  "bitvec",
  "blake3",
- "bytemuck",
  "cfg-if",
  "cipher 0.5.2",
  "clmul",
@@ -2528,24 +2461,26 @@ dependencies = [
  "once_cell",
  "opaque-debug",
  "rand 0.10.3",
- "rand_chacha 0.10.0",
  "rand_core 0.10.1",
  "rayon",
  "serde",
  "thiserror 2.0.18",
+ "zerocopy",
 ]
 
 [[package]]
 name = "mpz-fields"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
+ "cpufeatures 0.3.0",
  "crypto-bigint 0.7.3",
  "hybrid-array",
  "itybity 0.3.3",
  "mpz-core",
  "opaque-debug",
  "rand 0.10.3",
+ "rayon",
  "serde",
  "thiserror 2.0.18",
  "typenum",
@@ -2554,8 +2489,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-garble"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "async-trait",
  "derive_builder 0.20.2",
@@ -2580,8 +2515,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-garble-core"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "aes 0.9.0",
  "bitvec",
@@ -2595,7 +2530,6 @@ dependencies = [
  "mpz-core",
  "mpz-memory-core",
  "mpz-ot-core",
- "mpz-vm-core",
  "once_cell",
  "opaque-debug",
  "rand 0.10.3",
@@ -2611,8 +2545,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-hash"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "blake3",
  "itybity 0.3.3",
@@ -2624,8 +2558,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-ideal-vm"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "async-trait",
  "futures",
@@ -2641,8 +2575,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-memory-core"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "blake3",
  "futures",
@@ -2656,8 +2590,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-ole"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "async-trait",
  "futures",
@@ -2674,11 +2608,10 @@ dependencies = [
 
 [[package]]
 name = "mpz-ole-core"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "hybrid-array",
- "itybity 0.3.3",
  "mpz-common",
  "mpz-core",
  "mpz-fields",
@@ -2690,15 +2623,13 @@ dependencies = [
 
 [[package]]
 name = "mpz-ot"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "async-trait",
  "cfg-if",
- "enum-try-as-inner",
  "futures",
  "itybity 0.3.3",
- "mpz-cointoss",
  "mpz-common",
  "mpz-core",
  "mpz-ot-core",
@@ -2713,24 +2644,23 @@ dependencies = [
 
 [[package]]
 name = "mpz-ot-core"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "aes 0.9.0",
  "blake3",
- "bytemuck",
  "cfg-if",
  "cipher 0.5.2",
  "clmul",
- "ctr 0.10.1",
  "curve25519-dalek",
  "derive_builder 0.20.2",
- "enum-try-as-inner",
  "futures",
  "itybity 0.3.3",
  "matrix-transpose",
+ "mpz-cointoss-core",
  "mpz-common",
  "mpz-core",
+ "mpz-fields",
  "opaque-debug",
  "rand 0.10.3",
  "rand_chacha 0.10.0",
@@ -2744,8 +2674,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-share-conversion"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "async-trait",
  "mpz-common",
@@ -2760,8 +2690,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-share-conversion-core"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "mpz-common",
  "mpz-core",
@@ -2774,8 +2704,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-vm-core"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "async-trait",
  "futures",
@@ -2787,8 +2717,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-zk"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "async-trait",
  "blake3",
@@ -2805,8 +2735,8 @@ dependencies = [
 
 [[package]]
 name = "mpz-zk-core"
-version = "0.1.0-alpha.6"
-source = "git+https://github.com/tlsnotary/mpz2?rev=8f897838f4e24aff9da8e8b012e8ba35ae770141#8f897838f4e24aff9da8e8b012e8ba35ae770141"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/tlsnotary/mpz2?rev=23e2cc08ed11ae86d71f72fb968f1273d70c9e88#23e2cc08ed11ae86d71f72fb968f1273d70c9e88"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -2814,7 +2744,6 @@ dependencies = [
  "mpz-circuits",
  "mpz-core",
  "mpz-memory-core",
- "mpz-vm-core",
  "rand_chacha 0.10.0",
  "rangeset",
  "rayon",
@@ -3503,7 +3432,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3945,7 +3874,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4612,7 +4541,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5551,7 +5480,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5630,16 +5559,7 @@ version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
 dependencies = [
- "windows-targets 0.52.6",
-]
-
-[[package]]
-name = "windows-sys"
-version = "0.60.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb"
-dependencies = [
- "windows-targets 0.53.5",
+ "windows-targets",
 ]
 
 [[package]]
@@ -5657,31 +5577,14 @@ version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b724f72796e036ab90c1021d4780d4d3d648aca59e491e6b98e725b84e99973"
 dependencies = [
- "windows_aarch64_gnullvm 0.52.6",
- "windows_aarch64_msvc 0.52.6",
- "windows_i686_gnu 0.52.6",
- "windows_i686_gnullvm 0.52.6",
- "windows_i686_msvc 0.52.6",
- "windows_x86_64_gnu 0.52.6",
- "windows_x86_64_gnullvm 0.52.6",
- "windows_x86_64_msvc 0.52.6",
-]
-
-[[package]]
-name = "windows-targets"
-version = "0.53.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4945f9f551b88e0d65f3db0bc25c33b8acea4d9e41163edf90dcd0b19f9069f3"
-dependencies = [
- "windows-link",
- "windows_aarch64_gnullvm 0.53.1",
- "windows_aarch64_msvc 0.53.1",
- "windows_i686_gnu 0.53.1",
- "windows_i686_gnullvm 0.53.1",
- "windows_i686_msvc 0.53.1",
- "windows_x86_64_gnu 0.53.1",
- "windows_x86_64_gnullvm 0.53.1",
- "windows_x86_64_msvc 0.53.1",
+ "windows_aarch64_gnullvm",
+ "windows_aarch64_msvc",
+ "windows_i686_gnu",
+ "windows_i686_gnullvm",
+ "windows_i686_msvc",
+ "windows_x86_64_gnu",
+ "windows_x86_64_gnullvm",
+ "windows_x86_64_msvc",
 ]
 
 [[package]]
@@ -5691,22 +5594,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
 
 [[package]]
-name = "windows_aarch64_gnullvm"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9d8416fa8b42f5c947f8482c43e7d89e73a173cead56d044f6a56104a6d1b53"
-
-[[package]]
 name = "windows_aarch64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
-
-[[package]]
-name = "windows_aarch64_msvc"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9d782e804c2f632e395708e99a94275910eb9100b2114651e04744e9b125006"
 
 [[package]]
 name = "windows_i686_gnu"
@@ -5715,22 +5606,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b"
 
 [[package]]
-name = "windows_i686_gnu"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "960e6da069d81e09becb0ca57a65220ddff016ff2d6af6a223cf372a506593a3"
-
-[[package]]
 name = "windows_i686_gnullvm"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66"
-
-[[package]]
-name = "windows_i686_gnullvm"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa7359d10048f68ab8b09fa71c3daccfb0e9b559aed648a8f95469c27057180c"
 
 [[package]]
 name = "windows_i686_msvc"
@@ -5739,22 +5618,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
 
 [[package]]
-name = "windows_i686_msvc"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e7ac75179f18232fe9c285163565a57ef8d3c89254a30685b57d83a38d326c2"
-
-[[package]]
 name = "windows_x86_64_gnu"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78"
-
-[[package]]
-name = "windows_x86_64_gnu"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c3842cdd74a865a8066ab39c8a7a473c0778a3f29370b5fd6b4b9aa7df4a499"
 
 [[package]]
 name = "windows_x86_64_gnullvm"
@@ -5763,22 +5630,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
 
 [[package]]
-name = "windows_x86_64_gnullvm"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ffa179e2d07eee8ad8f57493436566c7cc30ac536a3379fdf008f47f6bb7ae1"
-
-[[package]]
 name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
-
-[[package]]
-name = "windows_x86_64_msvc"
-version = "0.53.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
 name = "winnow"
